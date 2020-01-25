@@ -11,4 +11,5 @@ secret.json
 wkhtmltopdf.exe
 template.html
 r4template.html
+testfile.py
 

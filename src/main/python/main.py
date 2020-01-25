@@ -14,6 +14,7 @@ from elisa_data_page import PageData
 from gantt_page import PageGantt
 from settings_page import PageSettings
 from help_page import PageHelp
+import webbrowser
 import sys
 
 
@@ -55,6 +56,10 @@ class AppContext(ApplicationContext):
     def colour_map(self):
         return self.get_resource('gantt_color_map.csv')
 
+    @cached_property
+    def help(self):
+        return self.get_resource('./html/help.html')
+
     """ Sentry exception handlers """
     @cached_property
     def exception_handlers(self):
@@ -88,6 +93,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
 
         self.ctx = ctx
+        print(self.ctx.help)
         self.setStyle(QStyleFactory.create("Fusion"))
 
         x, y, w, h = get_geometry()  # Get optimal geometry
@@ -143,7 +149,7 @@ class MainWindow(QMainWindow):
         settings_action = self.create_action("&Change File Paths", lambda: self.stacked.setCurrentIndex(1),
                                              'Ctrl+T', "Edit paths to required files")
 
-        help_action = self.create_action("&Help", lambda: self.stacked.setCurrentIndex(3),
+        help_action = self.create_action("&Help", self.show_help,
                                          'Ctrl+H', tip="Show help documentation")
 
         datacheck_action = self.create_action("&ELISA Data Checking", lambda: self.stacked.setCurrentIndex(4),
@@ -184,6 +190,17 @@ class MainWindow(QMainWindow):
                 target.addAction(action)
             else:  # Add separator if no action
                 target.addSeparator()
+
+    def show_help(self):
+        """ Open help file in browser """
+
+        # New tab in browser
+        new = 2
+
+        # Get help.html and open in browser
+        helpfile = self.ctx.help.replace("\\", "/")
+        url = "file://" + helpfile
+        webbrowser.open(url, new=new)
 
     def get_saved_paths(self):
         """ Retrieve the file paths of the required files as saved from settings page """

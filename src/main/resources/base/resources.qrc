@@ -1,5 +1,8 @@
 <!DOCTYPE RCC><RCC version="1.0">
 	<qresource>
 		<file alias="help.html">./html/help.html</file>
+		<file alias="data.png">./html/images/data.png</file>
+		<file alias="errors.png">./html/images/errors.png</file>
+		<file alias="master.png">./html/images/master.png</file>
 	</qresource>
 </RCC>
