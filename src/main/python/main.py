@@ -5,10 +5,10 @@ from win32api import GetSystemMetrics
 from pathlib import Path
 import sys
 from PyQt5 import QtWidgets
-from PyQt5.QtGui import QPalette, QColor, QIcon
-from PyQt5.QtCore import QSettings, QByteArray, QUrl
+from PyQt5.QtGui import QPalette, QColor, QPixmap
+from PyQt5.QtCore import QSettings, QByteArray, Qt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QAction, QSizePolicy, QLineEdit, QStyleFactory, QCheckBox, \
-    QComboBox
+    QComboBox, QSplashScreen
 from datacheck_page import PageDataCheck
 from elisa_data_page import PageData
 from gantt_page import PageGantt
@@ -16,12 +16,19 @@ from settings_page import PageSettings
 from help_page import PageHelp
 import webbrowser
 import sys
+import time
 
 
 class AppContext(ApplicationContext):
 
     def run(self):
+        img = r"C:\Users\kier_\Documents_Unsynced\Python\fbs app icons\splash.png"
+        img_size = self.get_pixel_dims()
+        pixmap = QPixmap(img).scaled(img_size,img_size, Qt.KeepAspectRatio)
+        splash = QSplashScreen(pixmap)
+        splash.show()
         self.main_window.show()
+        splash.finish(self.main_window)
         return self.app.exec_()
 
     @cached_property
@@ -34,6 +41,7 @@ class AppContext(ApplicationContext):
         version = self.build_settings['version']
         app_name = self.build_settings['app_name']
         window.setWindowTitle(app_name + " v" + version)
+        time.sleep(1.5)
         return window
 
     @cached_property
@@ -76,6 +84,15 @@ class AppContext(ApplicationContext):
             self.build_settings['environment']
         )
 
+    def get_pixel_dims(self):
+        """ Calculate the optimal pixel dimensions for the splash screen """
+
+        # Get screen resolution in pixels
+        screen_width = GetSystemMetrics(0)
+
+        pixels = screen_width / 4.5
+        return pixels
+
 
 class MyCustomApp(QApplication):
     """ Subclass the QApplication from ApplicationContext to set details for registry """
@@ -93,7 +110,6 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
 
         self.ctx = ctx
-        print(self.ctx.help)
         self.setStyle(QStyleFactory.create("Fusion"))
 
         x, y, w, h = get_geometry()  # Get optimal geometry
