@@ -5,17 +5,19 @@ import os
 
 
 class ELISA:
+    """ Class to contain all information about ELISA plate """
+
     def __init__(self, file, first_list, repeats_list, qc_limits, curve_vals, savedir,
                  cut_high_ods, cut_low_ods, apply_lloq):
-        """ Initialise with mars file path"""
-        
+
         # Get elisa data
-        self.file = file
+        self.file = file  # File path of plate csv
         self.plate_fail = None
         self.qc_limits = qc_limits
         self.curve_vals = curve_vals
-        self.savedir = savedir
+        self.savedir = savedir  # Directory
 
+        # Get curve/reader parameters and data
         self.parameters, self.data = self.get_data()
         if self.parameters is None or self.data is None:
             return
@@ -114,6 +116,7 @@ class ELISA:
         # Get plate Details
         plate = df.iloc[pltidx + 1:, :].copy()
 
+        # Check data is present
         missing = plate['Conc'].isnull().all() | plate['BlankCorrect'].isnull().all()
 
         if missing:
@@ -128,12 +131,14 @@ class ELISA:
         return parms, plate
 
     def find_parameter(self, text, col):
+        """ Find parameter in dataframe """
 
         df = self.parameters
         findtext = df[df[col].str.contains(text, regex=True) == True].values
         return findtext
 
     def get_ids(self):
+        """ Get barcode and reader ID """
 
         ids = self.find_parameter("ID1:", "ProtocolID")
         barcode = ids[0][0].replace("ID1: ", "")
@@ -179,19 +184,22 @@ class ELISA:
         return serotype, read_date, read_time
 
     def get_rsquared(self):
+        """ Get r^2 value from data file """
 
         ids = self.find_parameter("^[r].$","DateReader")
         
         # If ids not empty array
         if ids.size:
-            rsquared = round(pd.to_numeric(ids[0][2]), 3)
+            rsquared = round(pd.to_numeric(ids[0][2]), 3)  # Round to 3dp
         else:
             rsquared = None
 
         return rsquared
 
     def get_barcode_details(self):
+        """ Get technician, date and plate ID from barcode """
 
+        # Check if last character is alpga
         if self.barcode[0].isalpha():
             bstring = self.barcode[1:]
 
@@ -223,8 +231,8 @@ class ELISA:
 
     
     def get_blank(self):
-        
         """ Get average blank value """
+
         df = self.data
         blankdf = df[df['Ref'].str.contains("Blank B")]['Raw_405-620']
         blankvals = round(pd.to_numeric(blankdf).mean(), 3)
@@ -257,6 +265,7 @@ class ELISA:
             return
 
     def get_plate_fail(self):
+        """ Check if plate has failed """
 
         # Check blank value
         if self.blank >= 0.1:
@@ -266,9 +275,11 @@ class ELISA:
         if not 0.9 <= self.rsquared <= 1.1:
             return "R16"
 
+        # If curve fail
         if self.Curve.fail:
             return "R16"
 
+        # If QC fail (NR)
         if self.High_QC.fail & self.Low_QC.fail:
             return "R2+R3"
         elif self.High_QC.fail:
@@ -280,7 +291,9 @@ class ELISA:
             return None
 
     def check_qc_oor(self):
+        """ Check to see whether QC is out of range """
 
+        # If high/low QC recalculated
         h_recalc = self.High_QC.result_recalc
         l_recalc = self.Low_QC.result_recalc
 
@@ -302,16 +315,19 @@ class ELISA:
         lo_1 = self.qc_limits.loc[self.serotype]['Lo_Lower']
         lo_2 = self.qc_limits.loc[self.serotype]['Lo_Upper']
 
+        # If high control out of range
         if not hi_1 <= hi_result <= hi_2:
             r2 = True
         else:
             r2 = False
 
+        # If low control out of range
         if not lo_1 <= lo_result <= lo_2:
             r3 = True
         else:
             r3 = False
 
+        # If both out of range
         if r2 and r3:
             return "R2+R3"
         elif r2:
@@ -323,11 +339,13 @@ class ELISA:
 
     def get_sample_warnings(self):
         """ Get sample warning and append to plate details """
-        
+
+        # Loop through samples
         for s in self.Samples:
             s_id = str(s.sample_id)
             plate_id = str(self.barc_id)
-            
+
+            # Check if sample warning exists
             if s.warning:
                 warn_str = 'Sample ' + s_id + \
                            ' on Plate ' + plate_id + \
@@ -335,18 +353,20 @@ class ELISA:
                 self.warnings.append(warn_str)
             
 class Sample:
+    """ Class containing all sample details and checks """
+
     def __init__(self, data, sample_number, sample_id, curve_vals,
                  cut_high_ods, cut_low_ods, apply_lloq):
         
-        self.data = data
-        self.sample_number = sample_number
-        self.curve_vals = curve_vals
-        self.sample_id = sample_id
+        self.data = data  # Sample data
+        self.sample_number = sample_number  # Position on plate
+        self.curve_vals = curve_vals  # Curve concentrations
+        self.sample_id = sample_id  # Sample ID
         self.fail = False
         self.warning = ''
-        self.cut_high_ods = cut_high_ods
-        self.cut_low_ods = cut_low_ods
-        self.apply_lloq = apply_lloq
+        self.cut_high_ods = cut_high_ods  # Upper OD limit
+        self.cut_low_ods = cut_low_ods  # Lower OD limit
+        self.apply_lloq = apply_lloq  # Apply LLOQ yes/no
         idx_list = ['A','B','C','D','E','F','G','H']
 
         # If sample ID == Empty then return empty series and values
@@ -359,9 +379,9 @@ class Sample:
             return
 
         # Get ODs and concentrations as arrays
-        self.ods, self.concs = self.get_data()
-        self.ods_orig = self.ods.copy()
-        self.concs_orig = self.concs.copy()
+        self.ods, self.concs = self.get_data()  # ODs and concs from data
+        self.ods_orig = self.ods.copy()  # ALL ODs (as copy)
+        self.concs_orig = self.concs.copy()  # ALL Concs (as copy)
         
         # Remove 2/0.1 ODs if required
         self.apply_od_cutoff()
@@ -396,7 +416,8 @@ class Sample:
         
         # Get ODs within range
         mask = self.get_od_mask()
-        
+
+        # Mask ODs and concs outside limits
         self.ods = self.ods[mask]
         self.concs = self.concs[mask]
 
@@ -416,11 +437,12 @@ class Sample:
         return mask
 
     def get_data(self):
+        """ Get sample data """
 
         # Get data and determine column on plate
         plate = self.data
         n = self.sample_number
-        cols = ((n*2)+1, (n*2)+2)
+        cols = ((n*2)+1, (n*2)+2)  # e.g. Sample 1 = cols 3,4
 
         # Find samples from columns on plate
         samples = plate.loc[plate.index.get_level_values('Col').isin(cols)]
@@ -441,6 +463,7 @@ class Sample:
         # Replace values with nan if only one replicate value obtained
         concs.loc[concs.isna().any(axis=1), :] = np.nan
 
+        # Calculate replicates
         replicates = np.std(concs, axis=1, ddof=1) / np.mean(concs, axis=1) * 100
 
         # Create mask for replicates >= 15
@@ -488,12 +511,13 @@ class Sample:
 
     def get_result(self):
         """ Calculate average and return as ug/ml """
-        
+
+        # Average the concentration
         r = np.mean(self.average_concs)/1000
         if np.isnan(r):
             return ''
         else:
-            return round_to3(r)
+            return round_to3(r)  # Round to 3dp
 
     def check_lloq(self):
         """ Check if the sample is <LLOQ """
@@ -534,6 +558,7 @@ class Sample:
     
     def check_recalc(self):
         """ Check if sample needs to be repeated or recalculate values"""
+
         # Number of concentrations returned
         c = self.average_concs.count()
         rpt = None
@@ -545,7 +570,8 @@ class Sample:
             rpt = self.check_repeats()
         if c == 0:
             high_low = self.check_empty_concs()
-            
+
+        # If repeat then return as fail
         if rpt:
             self.fail = True
             return rpt
@@ -564,6 +590,7 @@ class Sample:
         return round_to3(new_result)
 
     def check_repeats(self):
+        """ Check if sample should be repeated """
 
         # Get number of replicates
         r = self.replicates
@@ -577,6 +604,7 @@ class Sample:
             return None
 
     def check_empty_concs(self):
+        """ Check samples that have no values after OD limits """
 
         # If c = 0 then check for high (bottom row of plate)
         high_od = np.mean(np.array(self.ods_orig.loc['H'])) > 2
@@ -599,6 +627,7 @@ class Sample:
         return None
 
     def check_np(self):
+        """ Check if sample is non-parallel """
 
         # Check for RPTNP
         # If first CV > 20% Then NP
@@ -614,6 +643,7 @@ class Sample:
             # Check replicate above - if >15% --> >20% RPT
             rep_above = self.replicates.iloc[idx_loc - 1]
 
+            # If non-parallel and replicate above then repeat
             if rep_above > 15:
                 return '>20% \n RPT'
             else:
@@ -622,7 +652,9 @@ class Sample:
             return None
 
     def get_recalc(self):
+        """ Get a recalculated value for sample if necessary """
 
+        # List of CVs
         cv_vals = self.cvs.notnull()
 
         # Check if RPT NP or >20% RPT
@@ -658,12 +690,15 @@ class Sample:
         self.cvs = self.cvs.apply(round_to3)
 
 class QC(Sample):
+    """ QC Sample subclassed from sample """
+
     def __init__(self, data, sample_number, sample_id, curve_vals=None):
         super().__init__(data, sample_number, sample_id,
                          curve_vals=None, cut_low_ods=0.1, cut_high_ods=2, apply_lloq=False)
 
 
     def get_data(self):
+        """ Get QC data - overridden function """
 
         # Get data and determine column on plate
         plate = self.data
@@ -725,12 +760,15 @@ class QC(Sample):
         self.cvs = self.cvs.apply(round_to3)
 
 class Curve(Sample):
+    """ Curve Class subclassed from sample """
 
     def __init__(self, data, sample_number, sample_id, serotype, curve_vals):
+
         self.serotype = serotype
         self.curve_vals = curve_vals
         # Get curve top point
         self.top_point = self.get_top_point()
+
         super().__init__(data, sample_number, sample_id, curve_vals,
                          cut_low_ods=None, cut_high_ods=None, apply_lloq=False)
 
@@ -741,9 +779,6 @@ class Curve(Sample):
         self.fail = self.check_fail()
 
         self.format_values()
-
-#    def apply_od_cutoff(self):
-#        pass
 
     def get_replicates(self):
         """ Calculate %CV between replicate values """

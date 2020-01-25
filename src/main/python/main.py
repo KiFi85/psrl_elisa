@@ -22,21 +22,29 @@ import time
 class AppContext(ApplicationContext):
 
     def run(self):
-        img = r"C:\Users\kier_\Documents_Unsynced\Python\fbs app icons\splash.png"
+        """ Run App Context """
+
+        # Create splash screen
+        img = self.get_resource('splash.png')
         img_size = self.get_pixel_dims()
-        pixmap = QPixmap(img).scaled(img_size,img_size, Qt.KeepAspectRatio)
+        pixmap = QPixmap(img).scaled(img_size, img_size, Qt.KeepAspectRatio)
         splash = QSplashScreen(pixmap)
         splash.show()
+        # Load main window
         self.main_window.show()
         splash.finish(self.main_window)
         return self.app.exec_()
 
     @cached_property
     def app(self):
+        """ Overridden Application Context"""
+
         return MyCustomApp(sys.argv)
 
     @cached_property
     def main_window(self):
+        """ Returns Main Window Class"""
+
         window = MainWindow(self)
         version = self.build_settings['version']
         app_name = self.build_settings['app_name']
@@ -96,6 +104,7 @@ class AppContext(ApplicationContext):
 
 class MyCustomApp(QApplication):
     """ Subclass the QApplication from ApplicationContext to set details for registry """
+
     def __init__(self, *args, **kwargs):
         super(MyCustomApp, self).__init__(*args, **kwargs)
 
@@ -109,7 +118,7 @@ class MainWindow(QMainWindow):
     def __init__(self, ctx):
         super(MainWindow, self).__init__()
 
-        self.ctx = ctx
+        self.ctx = ctx  # Application context
         self.setStyle(QStyleFactory.create("Fusion"))
 
         x, y, w, h = get_geometry()  # Get optimal geometry
@@ -128,7 +137,7 @@ class MainWindow(QMainWindow):
 
         # stacked - Main Data window with Tabs
         self.stacked = QStackedWidget()
-        # self.tabs = QTabWidget()
+        # Add pages to stacked widget
         self.stacked.addWidget(PageData(ctx=self.ctx, objectName="elisa_data"))
         self.stacked.addWidget(PageSettings(ctx=self.ctx, objectName="path_settings"))
         self.stacked.addWidget(PageGantt(ctx=self.ctx, objectName="gantt_page"))
@@ -146,14 +155,14 @@ class MainWindow(QMainWindow):
         colour = QColor(217, 217, 217)
         main_menu.setStyleSheet("QWidget { background-color: %s}" % colour.name())
 
-        # Create main menu items
+        """ Create menu"""
         file_menu = main_menu.addMenu("&File")
         data_menu = main_menu.addMenu("&Data")
         report_menu = main_menu.addMenu("&Reporting")
         settings_menu = main_menu.addMenu("&Settings")
         help_menu = main_menu.addMenu("&Help")
 
-        # Create Actions
+        """ Create Actions """
         exit_action = self.create_action("&Exit", self.exit_app, "Ctrl+Q", "Exit Application")
 
         data_action = self.create_action("&ELISA Data", lambda: self.stacked.setCurrentIndex(0),
@@ -279,11 +288,6 @@ class MainWindow(QMainWindow):
                 widget.setEnabled(False)
                 data_page.findChild(QComboBox, "combo_options").setCurrentIndex(0)
 
-    def set_default_checkboxes(self):
-        """ If no previous saved settings - default to clinical """
-
-        pass
-
     def closeEvent(self, event):
         """ Override the close window event and save user settings to QSettings """
 
@@ -296,8 +300,6 @@ class MainWindow(QMainWindow):
         # Save F007 and MARS file paths for default browsing
         self.save_data_paths()
 
-        # Save window geometry
-        # QSettings.setValue("MainWindow/Geometry", self.saveGeometry())
         sys.exit()
 
     def save_data_paths(self):
@@ -320,7 +322,6 @@ class MainWindow(QMainWindow):
                 settings.setValue("mars_dir", mars_path)
             except IndexError:
                 return
-        #
 
     def save_paths(self):
         """ Save the file paths for required files """

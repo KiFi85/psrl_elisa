@@ -50,17 +50,10 @@ def create_gantt(projects, colour_map, min_date, max_date):
     ax.scatter(subDates, subYPos,zorder=2,color="purple",edgecolor="w",marker="*",s=300,label="Submission Date")
     ax.legend()
 
-    # Plot today's date
-
-
     # Get colour bar properties
     cbar = getPlotColourBar(ax2,blueCols,bottomSample,topSample)
 
-
     # Title and save figure
     ax.set_title("ELISA Testing Gantt Chart",fontsize=16)
-    # plt.figure()
-    # plt.savefig("Oct19.png")
-    # plt.show()
     return fig
 

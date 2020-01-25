@@ -8,40 +8,43 @@ import time
 
 
 class Assay:
+    """ Class containing all details from F007:
+        Date, technician, sponsor, study, samples and plate IDs """
 
     def __init__(self, f007, qc_file, curve_file, xl_id, files=[]):
         """ f007 and files as full paths from file picker dialog """
-        self.f007 = f007
-        self.f007_ref = get_file_from_path(self.f007)
 
-        self.files = files
-        self.qc_file = qc_file
-        self.curve_file = curve_file
+        self.f007 = f007  # File path
+        self.f007_ref = get_file_from_path(self.f007)  # Standard F007 reference ID
+
+        self.files = files  # List of elisa plate file paths
+        self.qc_file = qc_file  # File containing QC ranges
+        self.curve_file = curve_file  # File containing Curve Info
         self.xl_id = xl_id  # PID of Excel application
-        self.wb = None
+        self.wb = None  # Assay workbook
 
         # Get assay details
         self.tech, self.date, self.sponsor, self.study = self.get_assay_details()
 
+        # List of first run and repeat plates and samples
         self.first_list, self.repeats_list = self.get_samplelist()
         
         # Determine whether first run, mixed or repeats
         self.run_type = self.get_run_type()
 
-        self.qc_limits = self.get_qc_limits()
-        self.curve_vals = self.get_curve_vals()
+        self.qc_limits = self.get_qc_limits()  # Get QC limits
+        self.curve_vals = self.get_curve_vals()  # Get IgG curve concentrations
         
     def get_assay_details(self):
         """ Get technician, date, sponsor and study details"""
 
-        # app = xw.App(visible=False)
-        # wb = xw.Book(self.f007)
-        app = self.get_xl_app()
-        self.wb = app.books.open(self.f007)
+        app = self.get_xl_app()  # Get working Excel process by pID
+        self.wb = app.books.open(self.f007)  # Open F007 workbook
 
+        # Defined range names to check
         details = {'AnalystName': '', 'AssayStart': '', 'Sponsor': '', 'StudyName': ''}
         
-        # getting the details
+        # getting the details if range exists in workbook
         for d in details.keys():
             try:
                 rng = self.wb.names(d).refers_to_range
@@ -56,33 +59,25 @@ class Assay:
             else:
                 raise RangeNotFoundError("Range in F007 is empty: " + d)
                 wb.close()
-                app.kill()
-                return 
+                return
                 
         # Check technician (Empty, upper case, space)
         details["AnalystName"] = get_tech_initials(details["AnalystName"])
     
-        # Check Assay Date
+        # Check and re-format Assay Date
         details["AssayStart"] = change_assaydate(details["AssayStart"])
-    
-    
+
+        # Get final details
         tech = details['AnalystName']
         date = details['AssayStart']
         sponsor = details['Sponsor']
         study = details['StudyName']
-        
-        # wb.close()
-        # app.kill()
-        
+
         return tech, date, sponsor, study
 
 
     def get_samplelist(self):
         """ Get list of plate IDs and samples"""
-        
-        # Create Excel app object
-        # app = xw.App(visible=False)
-        # wb = xw.Book(self.f007)
         
         # Get sample table worksheet - can't use dynamic named range
         ws = self.wb.sheets['Sample Table']
@@ -103,21 +98,18 @@ class Assay:
             
             # Get plates as keys and samples as values
             if idx != 0:
-                plate = row[0].value
-                samples = list(row[1:].value)
-                samples = [round_to0(s) if s else "EMPTY" for s in samples]        
+                plate = row[0].value  # Plate ID
+                samples = list(row[1:].value)  # List of samples
+                # If sample ID numeric - round or return as string or EMPTY
+                samples = [round_to0(s) if s else "EMPTY" for s in samples]
                 
                 # If only a single letter - first run block
                 if len(plate) == 1 and plate.isalpha():    
                     first_run[plate] = samples
                 else:
                     repeats[plate] = samples
-        
-        # wb.close()
-        # app.kill()
 
         return first_run, repeats
-        
 
     def get_run_type(self):
         """ Determine whether the assay is first run, repeats or mixed """

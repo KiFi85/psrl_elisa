@@ -61,6 +61,7 @@ class Worker(QRunnable):
             self.signals.finished.emit()  # Done
 
 class PageData(QTabWidget):
+    """ Create a tabbed widget to store Data and Error tabs """
 
     def __init__(self, ctx, *args, **kwargs):
         super(PageData, self).__init__(*args, **kwargs)
@@ -68,7 +69,7 @@ class PageData(QTabWidget):
         self.setDocumentMode(False)
         self.setMovable(False)
         self.setTabPosition(QTabWidget.South)
-        self.main = DataTab(ctx)
+        self.main = DataTab(ctx)  # Application context argument to data tab to find resources
         self.error = ErrorTab()
         self.addTab(self.main, "Data")
         self.addTab(self.error, "Error Log")
@@ -80,6 +81,7 @@ class PageData(QTabWidget):
 
 
 class DataTab(QWidget):
+    """ Main data page tab """
 
     def __init__(self, ctx, *args, **kwargs):
         super(DataTab, self).__init__(*args, **kwargs)
@@ -212,6 +214,8 @@ class DataTab(QWidget):
         self.init_parms()
 
     def init_parms(self):
+        """ Initialise all parameters - used at startup and when Run Button clicked again """
+
         # Data objects and constants
         self.QC_FILE = ''
         self.CURVE_FILE = ''
@@ -344,12 +348,13 @@ class DataTab(QWidget):
         self.progress_bar.setValue(n)
 
     def int_progress(self, n):
-        """ Percentage progress """
+        """ Integer progress """
 
         self.progress_bar.setFormat(u"(%v / %m)")
         self.progress_bar.setValue(n)
 
     def result_error(self, err_list):
+        """ Function to process errors that may be returned from any worker thread """
 
         if err_list:
             self.progress_label.setText("Operation cancelled")
@@ -365,25 +370,29 @@ class DataTab(QWidget):
         return
 
     def done_show_bar(self):
+        """ When finished displaying progress bar on btn_run_clicked """
 
         # Format progress bar
-        self.set_button_states(False)
+        self.set_button_states(False)  # Buttons disabled
         self.progress_label.setVisible(True)
         self.progress_label.setText("Checking required files...")
         self.set_progress_opaque()
 
     def done_file_check(self):
+        """ When file check has completed """
 
-        # self.progress_label.setText("File check complete!")
         self.threadpool.waitForDone()
         self.progress_label.setText("Creating data objects...")
-        self.data_object_worker()
-        # self.data_object_worker()  # Create data objects
+        self.data_object_worker()  # Create assay and elisa_data objects
 
     def done_create_objects(self):
+        """ when data object have been created """
 
         self.threadpool.waitForDone()
         self.progress_bar.setValue(100)
+
+        # If the assay object has successfully been created
+        # Begin processing elisa data
         if self.assay:
             self.process_plates_worker()
         else:
@@ -392,6 +401,7 @@ class DataTab(QWidget):
     def done_processing_data(self):
         """ When finished processing elisa objects """
 
+        # Get default printer and check when printing is enabled
         printer = win32print.GetDefaultPrinter()
         do_print = self.cb_print.isChecked()
 
@@ -403,33 +413,39 @@ class DataTab(QWidget):
             self.done_print_data()
         else:
             self.progress_label.setText("Printing pdfs....")
-            self.print_worker()
+            self.print_worker()  # Begin printing PDFs
 
     def done_print_data(self):
+        """ When PDFs have been printed """
 
+        # Begin writing summary data files (master study, trending, run_details
         self.progress_label.setText("Writing summary data to file...")
         self.write_files_worker()
 
     def done_write_files(self):
+        """ When finished writing files create F093"""
 
-        # Save F093
-
+        # If not a repeated assay save data to Excel template
         if self.assay.run_type != "repeats":
             self.elisa_data.f093_to_excel()
         self.progress_bar.setValue(100)
         self.progress_label.setText("Finished")
-        self.set_button_states(True)
+        self.set_button_states(True)  # Re-enable buttons
 
+        # Initialise parameters and kill Excel process
         self.init_parms()
         self.kill_xl()
 
     def thread_error(self, exc_info):
         """ When error raised from within thread """
 
-        self.kill_xl()
-        self.display_error_box()
+        self.kill_xl()  # Kill Excel process
+        self.display_error_box()  # Display default error message
+
         self.error_log.setTextColor(QColor(255, 0, 0))  # Red 'Error' message
         self.error_log.append("A thread error occurred:\n")
+
+        # Write Python error to log (will occur if any exception is not handled
         self.error_log.setTextColor(QColor(0, 0, 0))
         self.error_log.append('{0}: {1}'.format(exc_info[0].__name__, exc_info[1]))
         self.error_log.append("\n" + exc_info[2] + "\n\n")
@@ -437,36 +453,33 @@ class DataTab(QWidget):
         self.set_button_states(True)
 
     def file_check_countdown(self, progress_callback):
-        """ A timer to run and update progress bar unless an error occurs """
+        """ A timer to run and update progress bar on file check progress
+            unless an error occurs """
 
-        # Format progress bar
-        # self.set_button_states(False)
-        # self.progress_label.setVisible(True)
-        # self.progress_label.setText("Checking required files...")
-        # self.set_progress_opaque()
-
-        # WRite to progress unless an error has been found
-        # while not self.error_occurred:
+        # 0 to 100%
         for n in range(0, 101):
 
+            # If any errors - add to list and return to run_error function
             if self.file_check_errors:
                 err_list = self.file_check_errors
                 return err_list
+
+            # Otherwise - set to 100%
             elif self.QC_FILE and self.CURVE_FILE and self.TREND_FILE and self.F093_FILE and self.MASTER_PATH:
                 progress_callback.emit(100)
                 return
             else:
                 time.sleep(0.02)
-                progress_callback.emit(n)
+                progress_callback.emit(n)  # emit progress of file check
 
     def get_object_countdown(self, progress_callback):
-        """ A timer to run and update progress bar unless an error occurs """
+        """ A timer to run and update progress bar on creation of data objects
+            unless an error occurs """
 
         # Format progress bar
         self.progress_label.setText("Creating objects...")
 
-        # WRite to progress unless an error has been found
-        # while not self.error_occurred:
+        # 0 to 100%
         for n in range(0, 101):
 
             # If gets to above 85 and still not created objects - slow down
@@ -486,96 +499,100 @@ class DataTab(QWidget):
                 progress_callback.emit(n)
 
     def write_files_countdown(self, progress_callback):
-        """ A timer to run and update progress bar unless an error occurs """
+        """ A timer to run and update progress bar on writing files progress
+            unless an error occurs """
 
-        # WRite to progress unless an error has been found
+        # Delay based on calculated time per file
         delay = (len(self.mars_files) * 0.0474) + 4.023
         delay /= 100
+
         for n in range(0, 101):
 
-            if self.write_files_errors:
+            if self.write_files_errors:  # If errors - return to run_error function
                 err_list = self.write_files_errors
                 return err_list
+
             elif self.trending_done and self.summary_done and self.master_done:
+
+                # If created quickly, run remainder of progress
                 for m in range(n, 100):
                     time.sleep(delay/12)
                     progress_callback.emit(m)
                 return
+
             else:
                 time.sleep(delay)
-                progress_callback.emit(n)
+                progress_callback.emit(n)  # Emit progress
 
     def file_check_worker(self):
-        """ Start the progress worker object. Check files and add to data constants if file check ok """
+        """ Start the progress worker object.
+            Check files and add to data constants if file check ok """
 
-        # Pass the function to execute
-        worker = Worker(self.file_check_countdown)  # Any other args, kwargs are passed to the run function
-        worker.signals.result.connect(self.result_error)
-        worker.signals.error.connect(self.thread_error)
-        worker.signals.finished.connect(self.done_file_check)
-        worker.signals.progress.connect(self.percent_progress)
+        # COUNTDOWN
+        worker = Worker(self.file_check_countdown)  # Check file countdown
+        worker.signals.result.connect(self.result_error)  # When the function returns
+        worker.signals.error.connect(self.thread_error)  # If an uncaught error occurs
+        worker.signals.finished.connect(self.done_file_check)  # Finished file check
+        worker.signals.progress.connect(self.percent_progress)  # Emit progress
 
-        # Pass the function to execute
-        worker2 = Worker(self.check_files_exist)  # Any other args, kwargs are passed to the run function
-        # worker2.signals.result.connect(self.result_error)
-        worker2.signals.error.connect(self.thread_error)
-        # worker2.signals.finished.connect(self.done_file_check)
-        # worker2.signals.progress.connect(self.percent_progress)
+        # RUN THE FUNCTION
+        worker2 = Worker(self.check_files_exist)  # Check required files exist
+        worker2.signals.error.connect(self.thread_error)  # If an uncaught error occurs
 
         # Execute
         self.threadpool.start(worker)
         self.threadpool.start(worker2)
-        # self.check_files_exist()
 
     def data_object_worker(self):
-        """ """
+        """ Create assay and elisa_data objects on worker threads """
 
-        # Pass the function to execute
-        worker = Worker(self.get_object_countdown)  # Any other args, kwargs are passed to the run function
-        worker.signals.result.connect(self.result_error)
-        worker.signals.error.connect(self.thread_error)
-        worker.signals.finished.connect(self.done_create_objects)
-        worker.signals.progress.connect(self.percent_progress)
+        # COUNTDOWN
+        worker = Worker(self.get_object_countdown)  # Emit to progress bar
+        worker.signals.result.connect(self.result_error)  # When the function returns
+        worker.signals.error.connect(self.thread_error)  # If an uncaught error occurs
+        worker.signals.finished.connect(self.done_create_objects)  # Finished creating objects
+        worker.signals.progress.connect(self.percent_progress)  # Progress as percentage
 
-        # Pass the function to execute
-        worker2 = Worker(self.create_data_objects)  # Any other args, kwargs are passed to the run function
-        worker2.signals.result.connect(self.result_error)
-        worker2.signals.error.connect(self.thread_error)
-        # worker2.signals.finished.connect(self.done_create_objects)
+        # CREATE OBJECTS
+        worker2 = Worker(self.create_data_objects)  # Create data objects
+        worker2.signals.result.connect(self.result_error)  # When the function returns something
+        worker2.signals.error.connect(self.thread_error)  # When an uncaught error occurs
 
         # Execute
         self.threadpool.start(worker)
         self.threadpool.start(worker2)
 
     def process_plates_worker(self):
-        """ """
+        """ Process the elisa data as worker threads """
 
+        # Change max int value of progress bar to number of files
         max_cnt = len(self.mars_files)
         self.progress_bar.setMaximum(max_cnt)
-        worker = Worker(self.process_plates)
-        worker.signals.result.connect(self.result_error)
-        worker.signals.error.connect(self.thread_error)
-        worker.signals.finished.connect(self.done_processing_data)
-        worker.signals.progress.connect(self.int_progress)
 
+        worker = Worker(self.process_plates)  # Process elisa data
+        worker.signals.result.connect(self.result_error)  # If the function returns
+        worker.signals.error.connect(self.thread_error)  # Uncaught error
+        worker.signals.finished.connect(self.done_processing_data)  # Finished processing data
+        worker.signals.progress.connect(self.int_progress)  # Emit as integer
+
+        # Execute worker
         self.threadpool.start(worker)
 
     def write_files_worker(self):
+        """ Write summary data - trending, master study data, run_details """
 
         self.progress_bar.setMaximum(100)
-        # Pass the function to execute
-        worker = Worker(self.write_files_countdown)  # Any other args, kwargs are passed to the run function
-        worker.signals.result.connect(self.result_error)
-        worker.signals.error.connect(self.thread_error)
-        worker.signals.finished.connect(self.done_write_files)
+
+        # COUNTDOWN
+        worker = Worker(self.write_files_countdown)  # Countdown for writing files
+        worker.signals.result.connect(self.result_error)  # If function returns
+        worker.signals.error.connect(self.thread_error)  # If uncaught error in thread
+        worker.signals.finished.connect(self.done_write_files)  # Finished writing files
         worker.signals.progress.connect(self.percent_progress)
 
-        # Pass the function to execute
-        worker2 = Worker(self.write_to_files)  # Any other args, kwargs are passed to the run function
-        # worker2.signals.result.connect(self.result_error)
-        worker2.signals.error.connect(self.thread_error)
-        # worker2.signals.finished.connect(self.done_file_check)
-        # worker2.signals.progress.connect(self.percent_progress)
+        # WRITE FILES
+        worker2 = Worker(self.write_to_files)  # Write data
+        worker2.signals.error.connect(self.thread_error)  # If uncaught error
 
         # Execute
         self.threadpool.start(worker)
@@ -584,20 +601,19 @@ class DataTab(QWidget):
     def print_worker(self):
         """ Two workers to print pdfs and to detect jobs coming through """
 
+        # Set progress bar to number of files to print
         self.progress_bar.setMaximum(len(self.pdf_names))
-        # Pass the function to execute
-        worker = Worker(self.count_print_jobs)  # Any other args, kwargs are passed to the run function
+
+        # COUNTDOWN
+        worker = Worker(self.count_print_jobs)  # Loop through n jobs
         worker.signals.result.connect(self.result_error)
         worker.signals.error.connect(self.thread_error)
         worker.signals.finished.connect(self.done_print_data)
         worker.signals.progress.connect(self.int_progress)
 
-        # Pass the function to execute
-        worker2 = Worker(self.print_pdf)  # Any other args, kwargs are passed to the run function
-        # worker2.signals.result.connect(self.result_error)
-        worker2.signals.error.connect(self.thread_error)
-        # worker2.signals.finished.connect(self.done_file_check)
-        # worker2.signals.progress.connect(self.percent_progress)
+        # PRINT DATA
+        worker2 = Worker(self.print_pdf)  # Print pdfs
+        worker2.signals.error.connect(self.thread_error)  # Uncaught error
 
         # Execute
         self.threadpool.start(worker)
@@ -606,8 +622,7 @@ class DataTab(QWidget):
     def get_data_constants(self):
         """ Get a list of constants to assign to main run script """
 
-        # rootdir ??
-        self.savedir = os.path.join(Path(self.mars_files[0]).parent)
+        self.savedir = os.path.join(Path(self.mars_files[0]).parent)  # PDF directory
         self.QC_FILE = self.find_required_file("qc_path")
         self.CURVE_FILE = self.find_required_file("curve_path")
         self.TREND_FILE = self.find_required_file("trending_path")
@@ -617,7 +632,6 @@ class DataTab(QWidget):
     def create_data_objects(self, progress_callback):
         """ Create assay and elisa_data objects """
 
-        # progress_callback.emit(10)
         self.progress_label.setText("Creating data objects...")
 
         # Assay object
@@ -630,7 +644,6 @@ class DataTab(QWidget):
             self.object_errors.append("Error creating assay object - please check F007 file")
             return self.object_errors
 
-        # progress_callback.emit(95)
         # Create ELISA Data Object
         try:
             self.elisa_data = ELISAData(assay=self.assay, savedir=self.savedir,
@@ -646,20 +659,21 @@ class DataTab(QWidget):
         """ Loop through elisa files, create elisa object and process data """
 
         self.progress_label.setText("Processing plate data")
-        # Get file
+
+        # Loop through files in assay list
         n_files = 0
         progress_callback.emit(0)
+
         for f in self.assay.files:
 
             # Check if should ignore file
             ignore_file = self.check_ignore_file(f)
-
             if ignore_file:
                 continue
 
             n_files += 1
 
-            # Create ELISA Object for Assay file
+            # Create ELISA Object
             self.elisa = ELISA(f, self.assay.first_list, self.assay.repeats_list,
                                    self.assay.qc_limits, self.assay.curve_vals, self.savedir,
                                    self.cut_high_ods, self.cut_low_ods, self.apply_lloq)
@@ -692,7 +706,7 @@ class DataTab(QWidget):
         # Input data to html template and Create pdf
         self.elisa_data.input_plate_data(self.elisa)
 
-        # Input data to f093
+        # Input data to dataframe
         if self.assay.run_type != "repeats":
             self.elisa_data.data_to_table(self.elisa)
 
@@ -705,44 +719,45 @@ class DataTab(QWidget):
     def print_pdf(self, progress_callback):
         """ Loop through pdf files and print """
 
-        ctr = 0
+        # Get printer name
         printer = win32print.GetDefaultPrinter()
-        for p in self.pdf_names:
-            ctr += 1
 
+        # Loop through pdf names
+        for p in self.pdf_names:
+
+            # Print pdf
             win32api.ShellExecute(0, "print", p, '/d:"%s"' % printer, ".", 0)
 
     def count_print_jobs(self, progress_callback):
         """ Search for print jobs and emit counter """
 
-        default = win32print.GetDefaultPrinter()
-        phandle = win32print.OpenPrinter(str(default))
+        default = win32print.GetDefaultPrinter()  # Default printer name
+        phandle = win32print.OpenPrinter(str(default))  # Get printer handle
 
-        jobs_found = 0  # Counter
+        jobs_found = 0  # Counter for number of jobs found
         n_jobs = len(self.pdf_names)  # Total number of jobs to be found
         job_ids = []  # Unique job ids so don't recount
 
-        # Carry on until all jobs found
+        # Carry on until all jobs found in queue
         while jobs_found < n_jobs:
 
             jobs = win32print.EnumJobs(phandle, 0, -1, 1)  # Get list of jobs for printer
 
             for job, user in enumerate(j['pUserName'] for j in jobs):
-                if user == os.getlogin() or user == "sejjinn":  # If sent by current user - get the job id
+                if user == os.getlogin():  # If sent by current user - get the job id
                     job_id = jobs[job]['JobId']
 
                     if job_id not in job_ids:  # If new job - increase number and add job id to list
                         jobs_found += 1
-                        progress_callback.emit(jobs_found)
+                        progress_callback.emit(jobs_found)  # Emit number of jobs found
                         job_ids.append(job_id)
 
-            time.sleep(0.1)  # Search every 0.1 seconds
+            time.sleep(0.1)  # Search for new job every 0.1 seconds
 
     def write_to_files(self, progress_callback):
         """ Write to trending file, run_details and master study file """
 
         # Trend QC data
-        start = time.time()
         self.elisa_data.update_trending()
         self.trending_done = True
 
@@ -773,6 +788,7 @@ class DataTab(QWidget):
         run_split = file.split("\\")[-1]
         run_split = run_split.split(" ")[0]
 
+        # If file is pdf, xlsm, json or name is run details - ignore
         if Path(file).suffix.upper() == '.PDF' \
                 or Path(file).suffix.upper() == '.XLSM' \
                 or Path(file).suffix.upper() == '.JSON' \
@@ -812,7 +828,6 @@ class DataTab(QWidget):
         err_list = []
 
         # Loop through file widgets
-
         for key, val in widget_dict.items():
 
             # Get file path from text based on object name
@@ -834,15 +849,6 @@ class DataTab(QWidget):
         else:
             self.get_data_constants()
             return []
-
-    def check_file_formats(self):
-        """ Check that required files have the expected formatting:
-            Trending/QC Limits/IgG Curve/F093/F091/ """
-
-        # Check trending
-
-    def check_trending(self):
-        """ Check that the trending file in required files page has the correct formatting """
 
     def write_errors_to_log(self, error_list):
         """ Take in a list and write out errors to log """
@@ -871,6 +877,7 @@ class DataTab(QWidget):
         err_box.exec_()
 
     def set_progress_opaque(self):
+        """ Make progress bar 'visible' with style """
 
         self.progress_bar.setStyleSheet("QProgressBar{"
                                         "border: 1px solid grey;"
@@ -889,6 +896,7 @@ class DataTab(QWidget):
                                         "}")
 
     def set_progress_transparent(self):
+        """ Make progress bar invisible """
 
         self.progress_bar.setStyleSheet("QProgressBar{"
                                         "border: 1px solid transparent;"
@@ -953,6 +961,7 @@ class DataTab(QWidget):
 
         self.mars_files = []
         settings = QSettings()
+
         # Get default directory - check if one has been previously saved
         saved_dir = settings.value("mars_dir") or ""
 
@@ -960,7 +969,6 @@ class DataTab(QWidget):
         if saved_dir and os.path.isdir(saved_dir) or os.path.isfile(saved_dir):
             default_dir = str(saved_dir)
         else:
-            default_dir = get_default_dir()
             default_dir = get_default_dir()
 
         # what to display
@@ -1003,10 +1011,12 @@ class DataTab(QWidget):
     def kill_xl(self):
         """ Kill any Excel processes """
 
-        # If there are any non-visible Excel instances - kill upon Error
+        # If there are no Excel processes
         if not xw.apps:
             return
 
+        # Loop through Excel processes, if process ID matches one working on:
+        # Kill and close all books
         for app in xw.apps:
             if app.pid == self.xl_id:
                 for book in app.books:

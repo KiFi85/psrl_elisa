@@ -21,30 +21,29 @@ pdf_options = {
 
 
 class ELISAData:
+    """ Class containing functions to process elisa data """
 
     def __init__(self, assay, savedir, trend_file, f093_file, master_file, xl_id, ctx):
 
         self.assay = assay
-        self.savedir = savedir
-        self.elisa_dict = {'s': 'Samples', 'c': 'Curve', 'h': 'High_QC', 'l': 'Low_QC'}
+        self.savedir = savedir  # Dir when ELISA data is stored
 
-        self.trend_file = trend_file
-        self.f093 = f093_file
-        self.master_file = os.path.abspath(master_file)
-        self.xl_id = xl_id
-        self.printer = win32print.GetDefaultPrinter()
-        self.ctx = ctx
+        self.trend_file = trend_file  # QC Trending file
+        self.f093 = f093_file  # F093 Excel template
+        self.master_file = os.path.abspath(master_file)  # Study master file
+        self.xl_id = xl_id  # ID of working Excel process
+        self.printer = win32print.GetDefaultPrinter()  # Default printer
+        self.ctx = ctx  # Application Context (for resources)
 
-        # PDF and jinja2 configuration
+        # PDF configuration (wkhtmltopdf)
         self.pdf_config = pdfkit.configuration(wkhtmltopdf=ctx.pdf_exe)
-        # self.templateEnv = self.configure_jinja()
 
-        self.warnings = []
-        self.plate_fails = 0
-        self.plate_list = []
-        self.results_list = []
+        self.warnings = []  # List of warnings
+        self.plate_fails = 0  # Plate fail counter
+        self.plate_list = []  # List of plate IDs
+        self.results_list = []  # List of sample results for every plate
 
-        self.trend_data = []
+        self.trend_data = []  # List of trending data
 
         # Check that a F093 has been created
         # Create F093 file name
@@ -90,13 +89,10 @@ class ELISAData:
         # If read on wrong protocol and exporting to Excel
         r4 = True if elisa.plate_fail == "R4" else False
 
+        # HTML template to use - gather data if not R4
         if r4:
-
-            # self.handle_r4(elisa, to_pdf)
             template_file = 'r4template.html'
-
         else:
-
             template_file = 'template.html'
 
             # Add plate details to plate list
@@ -110,17 +106,15 @@ class ELISAData:
             # Increase fail if plate fail
             self.plate_fails += 1 if elisa.plate_fail else 0
 
+        # Create pdf
         if to_pdf:
-
             self.create_pdf(template_file, elisa)
-
 
     def create_pdf(self, template_file, elisa):
         """ Create a pdf from an html template"""
 
         # Get html template file
         template = self.get_html_template(template_file)
-        # template = self.templateEnv.get_template(template_file)
 
         # Get save name
         pdf_path = elisa.pdf_path
@@ -140,20 +134,19 @@ class ELISAData:
         pdfkit.from_string(rendered, pdf_path, configuration=self.pdf_config, css=self.ctx.css, options=pdf_options)
 
     def data_to_table(self, elisa):
-
-        """ Creates f093 dataframe if first plate. Updates dataframe. """
+        """ Creates f093 dataframe if first plate or updates dataframe. """
 
         # If no ELISA template - move to next plate
         if not elisa.template:
             return
 
+        # If repeat - don't add to table
         if elisa.barcode[-1] == "R":
             return
 
         # If first file then initialise dataframe
         # Else add to dataframe
         if self.f093_df.empty:
-
             self.create_f093_df(elisa.serotype)
 
         # Check for serotype in existing dataframe
@@ -169,17 +162,21 @@ class ELISAData:
         self.input_f093_results(elisa)
 
     def create_f093_df(self, serotype):
-
         """ Initialises the f093 dataframe based on study, samples and plate IDs """
 
         # Get list of samples and the plates on which they were run
         sample_list = list(self.assay.first_list.values())
+
+        # Plate ID*4
         key_list = [list(k)*4 for k in self.assay.first_list.keys()]
+
+        # Convert to string
         sample_list = [str(item) for sublist in sample_list for item in sublist]
         key_list = [str(item) for sublist in key_list for item in sublist]
 
         # Get the column names for the data table
         self.df_names = get_f093_colnames(serotype, init=True)
+        # Create empty dataframe based on n samples
         self.f093_df = pd.DataFrame(index=range(0, len(sample_list)),
                                     columns=['Sample ID', 'Plate ID'])
 
@@ -188,13 +185,11 @@ class ELISAData:
         self.f093_df['Plate ID'] = key_list
 
     def input_f093_results(self, elisa):
-
         """ Input results to f093 dataframe """
 
-        # Get index of result column from dataframe
+        # Get index of result column from dataframe for serotype
         result_col = "Result_" + elisa.serotype
         col_ref = self.f093_df.columns.get_loc(result_col)
-#        col_refs = [r for r in range(col_ref,col_ref+3)]
 
         # IF plate fail, can just remove results, lab date and technician from plate
         if elisa.plate_fail:
@@ -222,17 +217,15 @@ class ELISAData:
 
         # Rename dataframe columns
         self.f093_df.columns = self.f093_df.columns.str.replace(
-                "Result_","PnC-IgG-ELISA type ")
+                "Result_", "PnC-IgG-ELISA type ")
 
         # Save dataframe to json
         self.f093_df.to_json(self.f093_save_name + ".json", orient='table')
 
-        # Create Excel object
-        # app = xw.App(visible=False)
+        # Get working Excel process based on pid
         app = self.get_xl_app()
+        # Open F093 workbook
         wb = app.books.open(self.f093)
-        # wb = xw.Book(self.f093)
-
 
         # Add dataframe to sheet
         ws = wb.sheets['Results']
@@ -245,7 +238,6 @@ class ELISAData:
         # Save F093        
         wb.save(self.f093_save_name + ".xlsm")
         wb.close()
-        # app.kill()
 
     def create_summary(self):
         """ Create a summary file containing assay details, errors/warnings
@@ -272,6 +264,7 @@ class ELISAData:
             self.warnings.append("")
             self.warnings.append("")
 
+            # Loop through warnings and write
             for idx, w in enumerate(self.warnings):
 
                 if idx == 0:
@@ -322,7 +315,7 @@ class ELISAData:
                     csvFile.close()
                     break
             except PermissionError:
-                print("Already opn")
+                print("Already open")
 
     def update_master(self):
         """ Update the master study file. Remove duplicate entries.
@@ -357,8 +350,7 @@ class ELISAData:
         # Import master_details file
         df = self.get_master_df()
 
-        # Write results
-        start = time.time()
+        # Write results to dataframe if not there
         for l in self.results_list:
             for row in l:
                 if not df[(df == row).all(axis=1)].empty:
@@ -366,7 +358,7 @@ class ELISAData:
                 else:
                     df.loc[len(df)] = row
 
-        # Drop Duplicates (will have been re-printed)
+        # Drop Duplicates (sample plate will have been re-printed)
         df.drop_duplicates(keep='first', inplace=True)
 
         # Sort by date if more than one date
@@ -435,6 +427,7 @@ class ELISAData:
     def import_summary(self):
         """ Import the run_details file for the assay """
 
+        # Get file name of run_details based on data directory
         file_name = "run_details " + self.assay.f007_ref + ".csv"
         file_name = os.path.join(os.path.abspath(self.savedir),
                                  file_name)
@@ -467,99 +460,18 @@ class ELISAData:
 
         return test_list
 
-    @staticmethod
-    def get_assay_attrs(xl_name, assay):
-        """ Get the attribute from Assay object based on named range in Excel template """
-
-        # Split the name and get attribute name
-        attr_list = xl_name.split("__")
-        attr_value = getattr(assay, attr_list[1])
-        return attr_value
-
-    def get_elisa_attrs(self, xl_name, elisa):
-
-        # Split xl range name
-        attr_list = xl_name.split("__")
-
-        # If only one item in list, return the value
-        if len(attr_list) == 1:
-            attr_value = getattr(elisa, attr_list[0])
-            return attr_value
-
-        # obj_list is list of objects: 1 = main Elisa object, 2 = Elisa.object
-        # attr_ref is the attribute name
-        obj_list, attr_ref = self.get_obj_attrs(attr_list)
-        # Object reference (e.g. "Curve")
-        obj_ref = obj_list[0]
-
-        # If the length is 2 then must be sample (e.g. E.Samples[0])
-        if len(obj_list) == 2:
-
-            obj_idx = int(obj_list[1])
-
-            # Get the samples object
-            obj = getattr(elisa, obj_ref)
-            # Get the sample object from list of samples
-            obj = obj[obj_idx]
-
-            if obj.sample_id == "EMPTY" and attr_ref != "sample_id":
-                return
-
-            # Get the attribute value            
-            value = getattr(obj, attr_ref)
-
-        else:
-            # Must be Curve or QC
-            obj = getattr(elisa, obj_ref)
-            value = getattr(obj, attr_ref)
-
-        if isinstance(value, pd.Series):
-            attr_value = value.values
-        else:
-            attr_value = value
-
-        return attr_value
-
-    def get_obj_attrs(self, attrs_list):
-        """ Get a list of objects and attributes for finding Elisa object attributes
-            from Excel range names. attrs_list is a list containing object and attribute name
-        """
-
-        # Replace s with Samples, c with Curve etc
-        attrs_list[0] = self.elisa_dict[attrs_list[0]]
-        # Get object (and index number if present)
-        obj_list = attrs_list[:-1]
-        # Get the reference for the attribute to lookup
-        attr_ref = attrs_list[-1]
-
-        return obj_list, attr_ref
-
-    def save_as_pdf(self, file):
-
-        save_name = get_file_from_path(file)
-        save_name = save_name + ".pdf"
-        pdf_path = os.path.join(os.path.abspath(self.savedir), save_name)
-        # pdf_path = r"C:\Users\kier_\Documents_Unsynced\Python\whopsrl\Data_Files\output.pdf"
-        self.wb.api.ExportAsFixedFormat(0, pdf_path)
-        # delete the table image from worksheet
-        pic_obj = self.wb.sheets[0].pictures
-        try:
-            pic_obj[0].delete()
-        except IndexError:
-            return
-
     def get_trend_data(self, elisa):
         """ Save the trending details to a list of lists """
 
-
         t_data = []
-        t_data.append(elisa.barc_date)
-        t_data.append(elisa.barc_tech)
-        t_data.append(self.assay.sponsor)
-        t_data.append(self.assay.study)
-        t_data.append(elisa.barc_id)
-        t_data.append(elisa.serotype)
+        t_data.append(elisa.barc_date)  # Assay date
+        t_data.append(elisa.barc_tech)  # Technician
+        t_data.append(self.assay.sponsor)  # Sponsor
+        t_data.append(self.assay.study)  # Study
+        t_data.append(elisa.barc_id)  # Plate ID
+        t_data.append(elisa.serotype)  # Serotype
 
+        # Try round the result - if attribute error must be NR
         try:
             hi = elisa.High_QC.result if not elisa.High_QC.result_recalc else elisa.High_QC.result_recalc
             lo = elisa.Low_QC.result if not elisa.Low_QC.result_recalc else elisa.Low_QC.result_recalc
@@ -573,7 +485,7 @@ class ELISAData:
             t_data.append("NR")
 
         t_data.append(elisa.plate_fail)
-        self.trend_data.append(t_data)
+        self.trend_data.append(t_data)  # Append to master trending data list
 
     def update_trending(self):
         """ Update the master trending file. Remove duplicate entries. """
