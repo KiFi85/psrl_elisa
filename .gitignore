@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+venv/
+target/
+
+.DS_Store
+.idea/
+secret.json
+wkhtmltopdf.exe
+template.html
+r4template.html
+

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help file</title>
+    <link rel="stylesheet" href="https://stackedit.io/style.css" />
+</head>
+
+<body class="stackedit" style="padding-left: 20px; max-width: 75%">
+
+    <header>
+        <h1 id="help">Help Page</h1>
+        <h2 id="contents">Contents</h2>
+        <ul>
+            <li><a href="#data">Data Menu</a></li>
+                <ul>
+                    <li><a href="#elisa-data-processing">ELISA Data
+                        Processing</a></li>
+                    <li><a href="#output-data">Output Data Files</a></li>
+                </ul>
+            <li><a href="#reporting">Reporting Menu</a></li>
+                <ul>
+                    <li><a href="#gantt-chart">Gantt Chart
+                        Plotter</a></li>
+                </ul>
+            <li><a href="#settings">Settings Menu</a></li>
+                <ul>
+                    <li><a href="#file-paths">File Paths</a></li>
+                </ul>
+        </ul>
+    </header>
+    <main>
+        <header>
+            <h2 id="data">Data Menu</h2>
+            <h3 id="elisa-data-processing">ELISA Data Processing</h3>
+        </header>
+        <section>
+            <p >ELISA plate data may be processed
+                from this page.
+                For the
+                data to be processed, a F007 file and raw data files are
+                required. F007 contains the testing details. The raw data files
+                are expected to be exported from Omega MARS software with
+                the ICH template applied. If any of the expected files are
+                missing or if the files do not contain all the
+                required information, the operation will either stop or
+                ignore that file.
+            </p>
+            <header>
+                <h4>Data Tab</h4>
+            </header>
+            <p>The main Data Tab provides options to select the relevant
+                assay files and choose whether to apply common parameters
+                such as LLOQ and OD limits.
+            </p>
+            <p><img src="./images/elisa-data.png" alt="elisa-main"></p>
+            <ol>
+                <li>Browse to find relevant F007</li>
+                <li>Browse to find and select raw MARS files</li>
+                <li> Select from a list of presets
+                    (Clinical/Validation/Custom)</li>
+                    <ul>
+                        <li>For the validated (Clinical) ELISA assay, the
+                            OD limits and LLOQ will be disabled as these
+                            must be kept.</li>
+                        <li>For assay validation, the upper OD limit will
+                            be applied and disabled for editing. LLOQ and the
+                            lower OD limit of 0.1 will be available for
+                            editing but will default to being 'off'</li>
+                        <li>There is a custom option from the dropdown
+                            where everything is enabled for editing</li>
+                    </ul>
+                <li>Type in an upper and/or lower OD limit. Uncheck the
+                    checkboxes to remove either or both OD limits.
+
+                </li>
+                <li>Applying LLOQ will assign an arbritrary "<0.15" value
+                    to those samples below the LLOQ. Removing this
+                    function will treat the sample like any other.
+                </li>
+                <li>Select to print the data table for each plate</li>
+                <li>Change between tabs (Data/Error)</li>
+            </ol>
+
+            <header>
+                <h4>Error Tab</h4>
+            </header>
+            <p>This tab contains an error logger which will display a list
+                of errors that may occur during execution. Some errors will
+            be explicitly handled, while others may not. The image below
+                illustrates this:</p>
+            <p><img src="./images/elisa-errors.png" alt="elisa-error"></p>
+            <p>Error 1 has been handled within the code, and a
+                simple error message is presented. In this case, the
+                trending file cannot be found. The file path to the
+                trending file should be checked in the <a href="#file-paths">
+                    file paths</a> settings page</p>
+            <p>Error 2 has not been handled from within the code. Instead,
+                the exception raised from within Python is re-routed to the
+                error log and displayed here. The error may not be as
+                intuitive. In this case, an error was forced by trying to
+                append a number to the text box.</p>
+            <p>In the case of an unhandled exception where it is not clear
+                how to proceed, the error log may be saved (3) as a text
+                file.</p>
+        </section>
+
+        <header>
+            <h3 id="output-data">Output Data Files</h3>
+        </header>
+        <section>
+            <p>There are a number of output files produced/updated during
+                ELISA data processing. There are two main save locations for these files:
+            <ol>
+                <li>Assay Directory (where plate data are stored)</li>
+                <li>Study Master Directory (where all master files are stored)</li>
+            </ol>
+            </p>
+            <header>
+                <h4>Run details (assay directory)</h4>
+                <p>
+                    This table contains information about the assay:
+                    <ul>
+                        <li>Master file study path</li>
+                        <li>Assay details (date, technician study...)</li>
+                        <li>Number of plates run and number failed</li>
+                        <li>Any warnings for particular plates/samples</li>
+                        <li>Plate and sample details</li>
+                    </ul>
+                    Plate warnings typically involve some issue with the input data. For example, if the
+                    template is not applied during plate reading or if the plate was read on the wrong protocol.
+                    When warnings are addressed and data is re-processed, they will disappear from the
+                    run_details file. Sample warnings will typically result from an empty sample (too high/low).
+                </p>
+                <h4>F093 (assay directory)</h4>
+                <p>
+                    F093 is a summary table of results saved as a <em>.xlsm</em> file. Two tables are included.
+                    The first table is protected and the second table is for editing. This is to allow for a comparison
+                    between the original and altered results (typically due to high/low/missing values)
+                </p>
+                <h4>F093 json file (assay directory)</h4>
+                <p>
+                    If plates are processed in batches or the same plate is processed multiple times, the F093 will need
+                    to be updated automatically to reflect the new results. This is done through the use of this
+                    <em>.json</em> file. It keeps track of new and existing data and is used to update F093 accordingly.
+                </p>
+                <h4>Master Study File (study master directory)</h4>
+                <p>
+                    This csv file contains a result for every single sample tested throughout a study (that has been
+                    processed using the application). This can be used for throughput summaries, cross-referencing and
+                    quick data-lookups. Primarily it will be compared to the results obtained from manual input before
+                    sending results to sponsors. The layout of the file is self explanatory but it is worth mentioning
+                    the amended result column. The results that will appear in this column will either indicate high
+                    or low sample results that cannot be calculated or 'NR' == 'No Result'. This will appear if the same
+                    sample has previously been tested against the same serotype and returned an 'NP' == 'Non Parallel'
+                    on both occasions.
+                </p>
+                <p><img src="images/master.png"></p>
+
+                <h4>Trending File (directory specified in settings)</h4>
+                <p>
+                    This csv file contains the QC results obtained from each plate processed using the application.
+                    Trending results prior to this have been re-formatted and included in this file.
+                </p>
+            </header>
+        </section>
+
+
+        <header>
+            <h2 id="reporting">Reporting Menu</h2>
+            <h3 id="gantt-chart">Gantt Chart</h3>
+        </header>
+        <section>
+            <p>
+                A Gantt chart can be produced to help keep track of projects. For this to be possible, the application
+                needs a list of projects with the following column names:
+                <ul>
+                <li>sponsor <em>required</em> </li>
+                <li>study <em>required</em> </li>
+                <li>shipment (shipment number) <em>required</em></li>
+                <li>start (Day expected to start testing) <em>required</em></li>
+                <li>end (Day expected to finish testing) <em>required</em></li>
+                <li>n (Number of samples) <em>required</em></li>
+                <li>pn (Number of serotypes) <em>optional</em></li>
+                <li>total (Total number of results) <em>optional</em></li>
+                <li>Tested (Number of results obtained) <em>optional</em></li>
+                <li>perc_com (Percentage complete) <em>required</em></li>
+                <li>deadline (Add a deadline to Gantt chart) <em>optional</em></li>
+                </ul>
+            </p>
+            <p>The following options are available on the page:
+            <ul>
+                <li>Start/End date - select a date range to display (x-axis)</li>
+                <li>Plot button - plot the chart</li>
+                <li>Save button - save the plot to .png</li></lis>
+            </ul>
+            </p>
+        </section>
+
+        <header>
+            <h2 id="settings">Settings Menu</h2>
+            <h3 id="file-paths">File Paths</h3>
+        </header>
+        <section>
+            <p>
+                There are a number of files and directories required for the application to run. As some of these files
+                may need to be edited in the future, they are not included as resources within the application itself,
+                rather, the file paths need to be specified for reading/writing. Any error that may occur during
+                execution where the error log reports that a file was not found may be solved by checking and editing
+                the file paths on this page.
+            </p>
+
+        </section>
+
+    </main>
+
+</body>
+</html>
+

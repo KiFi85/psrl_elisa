@@ -1,0 +1,216 @@
+body {
+    font-family: Calibri;
+}
+
+.mytable {
+    border-collapse: collapse;
+    border: 1px solid black;
+    empty-cells: inherit;
+    font-family: Calibri;
+    /*font-size: 6pt;*/
+    font-size: 6.5pt;
+    max-width: 171mm;
+    /*width: 100%;*/
+}
+
+.plate-summary {
+    font-size: 6.5pt;
+    text-align: left;
+    border: 1px solid black;
+}
+
+.plate-row {
+    font-size: 6.5pt;
+    text-align: left;
+    border-top: 0.5px solid black;
+    border-left: 1px solid black;
+    width: 0.1%;
+    white-space: nowrap;
+}
+
+.min-col-width {
+    text-align: center;
+    width: 0.1%;
+    white-space: nowrap;
+}
+
+tr {
+    height: 10px;
+}
+
+th {
+    text-align: center;
+    border: 1px solid black;
+    /*padding: 0.5rem;*/
+}
+
+td {
+    text-align: right;
+    /*border: 0.5px solid black;*/
+    font-size: 6pt;
+    /*padding: 0.2rem;*/
+}
+
+td.merged-na {
+    text-align: center;
+    border: 1px solid black;
+}
+
+td.merged-recalc {
+    text-align: center;
+    border: 1px solid black;
+    font-size: 8.5pt;
+}
+
+td.merged-recalc-qc {
+    text-align: center;
+    border: 0.5px solid black;
+    border-left: 1px solid black;
+    border-right: 1px solid black;
+    font-size: 8.5pt;
+}
+
+td.merged-qc-id {
+    text-align: center;
+    border-right: 0.5px solid lightgray;
+    border-bottom: 0.5px solid black;
+}
+
+td.merged-sample-id {
+    text-align: center;
+    border-right: 0.5px solid lightgray;
+}
+
+td.result {
+    font-weight: bold;
+    border-right: 1px solid black;
+    border-left: 1px solid black;
+    font-size: 6.5pt;
+    /*font-size: 6pt;*/
+}
+
+td.above-result {
+    border-left: 1px solid black;
+    border-right: 1px solid black;
+}
+
+td.cal {
+    text-align: left;
+    border-right: 0.5px solid lightgray;
+    width: 0.1%;
+    white-space: nowrap;
+    width: 18mm;
+    /*width: 103px;*/
+}
+
+td.labels {
+    text-align: right;
+    /*width: 4.5mm;*/
+    width: 0.1%;
+    white-space: nowrap;
+
+}
+
+td.replicates {
+    background-color: rgb(242, 242, 242);
+}
+
+td.concs {
+    border-right: 1px solid black;
+    border-left: 1px solid black;
+    width: 0.27%;
+}
+
+.separator {
+    background-color: rgb(146, 208, 80);
+    border: 1px solid black;
+}
+
+.signature {
+    width: 50mm;
+    height: 36px;
+    border-bottom: 1px solid black;
+    font-weight: bold;
+    display: flex;
+}
+
+.signature span {
+   align-self: flex-end;
+    font-size: 8pt;
+}
+
+table.dataframe tbody {
+    font-size: 2pt;
+}
+
+
+table.dataframe{
+    border-collapse: collapse;
+    border: none;
+    margin-top: 20px;
+    /*height: 100px;*/
+
+}
+
+
+table.od_table {
+    display: inline-block;
+    float: left;
+    /*margin-left: 40px;*/
+
+}
+
+table.concs_table {
+    display: inline-block;
+    float: right;
+    /*margin-right: 40px;*/
+}
+table.dataframe thead{
+    font-size: 6pt;
+    border: none;
+}
+
+table.dataframe th {
+    border: none;
+}
+
+table.dataframe tr {
+    border: none;
+    height: 0;
+    /*font-size: 8pt;*/
+    font-size: 5.5pt;
+}
+
+table.dataframe td {
+    border: none;
+    font-size: 4.5pt !important;
+    padding-left: 2px;
+    padding-right: 2px;
+}
+
+table.dataframe tfoot {
+    text-align: right;
+}
+
+.dataframe>tbody>tr>:nth-child(2) {
+    border-left: 1px solid black !important;
+}
+
+.dataframe>tbody>tr>:nth-child(1) {
+    font-size: 6pt !important;
+}
+
+.dataframe>tbody>tr>:last-child {
+    border-right: 1px solid black !important;
+}
+
+.dataframe>tbody>:last-child>:nth-last-child(-n + 12){
+    border-bottom: 1px solid black;
+}
+
+.dataframe>thead>tr>:nth-last-child(-n + 12){
+
+    /*background-color: aqua;*/
+    font-size: 6pt !important;
+    border-bottom: 1px solid black !important;
+}
