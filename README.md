@@ -43,4 +43,4 @@ As mentioned above, input and output files follow a specific format according to
 * Generalise to accept different input formats
 * Make parameters more dynamic (plate layouts, LLOQ etc)
 
-For more information see the [help](https://cdn.rawgit.com/KiFi85/psrl_elisa/master/src/main/resources/base/html/help.html) page
+For more information see the [help](https://rawgit.com/KiFi85/psrl_elisa/master/src/main/resources/base/html/help.html) page
