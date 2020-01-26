@@ -24,15 +24,8 @@ class AppContext(ApplicationContext):
     def run(self):
         """ Run App Context """
 
-        # Create splash screen
-        img = self.get_resource('splash.png')
-        img_size = self.get_pixel_dims()
-        pixmap = QPixmap(img).scaled(img_size, img_size, Qt.KeepAspectRatio)
-        splash = QSplashScreen(pixmap)
-        splash.show()
         # Load main window
         self.main_window.show()
-        splash.finish(self.main_window)
         return self.app.exec_()
 
     @cached_property
@@ -49,7 +42,6 @@ class AppContext(ApplicationContext):
         version = self.build_settings['version']
         app_name = self.build_settings['app_name']
         window.setWindowTitle(app_name + " v" + version)
-        time.sleep(1.5)
         return window
 
     @cached_property
@@ -405,8 +397,17 @@ def get_minsize():
 
 if __name__ == '__main__':
     appctxt = AppContext()       # 1. Instantiate ApplicationContext
-    # window = QMainWindow()
-    # window.resize(2000, 1000)
-    # window.show()
+
+    # Create splash screen
+    start = time.time()
+    img = appctxt.get_resource('splash.png')
+    img_size = appctxt.get_pixel_dims()
+    pixmap = QPixmap(img).scaled(img_size, img_size, Qt.KeepAspectRatio)
+    splash = QSplashScreen(pixmap)
+    splash.show()
+    while time.time() - start < 1.5:
+        time.sleep(0.001)
+        appctxt.app.processEvents()
+    splash.finish(appctxt.main_window)
     exit_code = appctxt.run()      # 2. Invoke appctxt.app.exec_()
     sys.exit(exit_code)
