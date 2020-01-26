@@ -29,7 +29,7 @@ but should be straightforward enough by editing the code.
 
 ## Screenshots
 ##### Splash screen
-<img src="src/main/resources/base/splash.png" alt="splash" height="50%" width="50%">
+<img src="src/main/resources/base/splash.png" alt="splash" height="35%" width="35%">
 
 ##### Main data processing page
 <img src="src/main/resources/base/datapage.png" alt="dataimg" height="75%" width="80%">
@@ -43,4 +43,4 @@ As mentioned above, input and output files follow a specific format according to
 * Generalise to accept different input formats
 * Make parameters more dynamic (plate layouts, LLOQ etc)
 
-For more information see the [help](src/main/resources/base/html/help.html) page
+For more information see the [help](https://rawgit.com/KiFi85/psrl_elisa/master/src/main/resources/base/html/help.html) page
