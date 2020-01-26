@@ -204,11 +204,19 @@ class ELISA:
             bstring = self.barcode[1:]
 
         # Get details - extract portion of barcode
-        if bstring[-1] == "R":
+
+        if bstring[-2:].isalpha():  # If two letters at end
+            bdate = bstring[-8:-2]
+            btech = bstring[-10:-8]
+            bplate = bstring[:-10]
+
+        elif bstring[-1].isalpha():  # If one letter at end
+
             bdate = bstring[-7:-1]
             btech = bstring[-9:-7]
             bplate = bstring[:-9]
-        else:
+
+        else:  # If no letters at end
             bdate = bstring[-6:]
             btech = bstring[-8:-6]
             bplate = bstring[:-8]
