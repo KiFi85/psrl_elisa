@@ -2,7 +2,7 @@
     "app_name": "psrl_elisa",
     "author": "Kier Finnegan",
     "main_module": "src/main/python/main.py",
-    "version": "1.0.1",
+    "version": "1.0.3",
     "sentry_dsn":  "https://ac103a29cf124ea19744f63a497c82bd@sentry.io/1897876",
     "public_settings": ["sentry_dsn"]
 }

@@ -6,11 +6,11 @@ from pathlib import Path
 import sys
 from PyQt5 import QtWidgets
 from PyQt5.QtGui import QPalette, QColor, QPixmap
-from PyQt5.QtCore import QSettings, QByteArray, Qt
+from PyQt5.QtCore import QSettings, QByteArray, Qt, QThreadPool
 from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QAction, QSizePolicy, QLineEdit, QStyleFactory, QCheckBox, \
     QComboBox, QSplashScreen
 from datacheck_page import PageDataCheck
-from elisa_data_page import PageData
+from elisa_data_page import PageData, Worker
 from gantt_page import PageGantt
 from settings_page import PageSettings
 from help_page import PageHelp
@@ -42,6 +42,7 @@ class AppContext(ApplicationContext):
         version = self.build_settings['version']
         app_name = self.build_settings['app_name']
         window.setWindowTitle(app_name + " v" + version)
+        time.sleep(1.5)
         return window
 
     @cached_property
@@ -395,19 +396,23 @@ def get_minsize():
     return min_height, min_width
 
 
+def splash(ctx):
+    """ Display splash screen """
+
+    img = ctx.get_resource('splash.png')  # Get splash image
+    img_size = ctx.get_pixel_dims()  # Get optimal display size
+    pixmap = QPixmap(img).scaled(img_size, img_size, Qt.KeepAspectRatio)  # Resize pixels
+    splash = QSplashScreen(pixmap)  # Create splash screen
+    splash.show()  # Show splash screen
+    splash.finish(ctx.main_window)  # Wait for main window to be displayed
+
+
 if __name__ == '__main__':
     appctxt = AppContext()       # 1. Instantiate ApplicationContext
 
-    # Create splash screen
-    start = time.time()
-    img = appctxt.get_resource('splash.png')
-    img_size = appctxt.get_pixel_dims()
-    pixmap = QPixmap(img).scaled(img_size, img_size, Qt.KeepAspectRatio)
-    splash = QSplashScreen(pixmap)
-    splash.show()
-    while time.time() - start < 1.5:
-        time.sleep(0.001)
-        appctxt.app.processEvents()
-    splash.finish(appctxt.main_window)
+    threadpool = QThreadPool()  # Start threadpool
+    worker = Worker(splash(appctxt))  # Create splash screen
+    threadpool.start(worker)  # Start worker
+
     exit_code = appctxt.run()      # 2. Invoke appctxt.app.exec_()
     sys.exit(exit_code)
