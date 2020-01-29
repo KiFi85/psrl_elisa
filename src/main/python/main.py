@@ -21,13 +21,12 @@ import time
 
 class AppContext(ApplicationContext):
 
-    def run(self, init=False):
+    def run(self):
         """ Run App Context """
 
-        if init:
-            # Load main window
-            self.main_window.show()
-            return self.app.exec_()
+        # Load main window
+        self.main_window.show()
+        return self.app.exec_()
 
     @cached_property
     def app(self):
@@ -43,6 +42,7 @@ class AppContext(ApplicationContext):
         version = self.build_settings['version']
         app_name = self.build_settings['app_name']
         window.setWindowTitle(app_name + " v" + version)
+        time.sleep(1.5)
         return window
 
     @cached_property
@@ -69,10 +69,6 @@ class AppContext(ApplicationContext):
     def help(self):
         return self.get_resource('./html/help.html')
 
-    @cached_property
-    def splash(self):
-        return self.get_resource('splash.png')
-
     """ Sentry exception handlers """
     @cached_property
     def exception_handlers(self):
@@ -88,6 +84,15 @@ class AppContext(ApplicationContext):
             self.build_settings['version'],
             self.build_settings['environment']
         )
+
+    def get_pixel_dims(self):
+        """ Calculate the optimal pixel dimensions for the splash screen """
+
+        # Get screen resolution in pixels
+        screen_width = GetSystemMetrics(0)
+
+        pixels = screen_width / 4.5
+        return pixels
 
 
 class MyCustomApp(QApplication):
@@ -390,28 +395,24 @@ def get_minsize():
 
     return min_height, min_width
 
-def get_pixel_dims():
-    """ Calculate the optimal pixel dimensions for the splash screen """
 
-    # Get screen resolution in pixels
-    screen_width = GetSystemMetrics(0)
+def splash(ctx):
+    """ Display splash screen """
 
-    pixels = screen_width / 4.5
-    return pixels
+    img = ctx.get_resource('splash.png')  # Get splash image
+    img_size = ctx.get_pixel_dims()  # Get optimal display size
+    pixmap = QPixmap(img).scaled(img_size, img_size, Qt.KeepAspectRatio)  # Resize pixels
+    splash = QSplashScreen(pixmap)  # Create splash screen
+    splash.show()  # Show splash screen
+    splash.finish(ctx.main_window)  # Wait for main window to be displayed
 
 
 if __name__ == '__main__':
     appctxt = AppContext()       # 1. Instantiate ApplicationContext
 
-    img = appctxt.splash  # Get splash image
-    img_size = get_pixel_dims()  # Get optimal display size
-    pixmap = QPixmap(img).scaled(img_size, img_size, Qt.KeepAspectRatio)  # Resize pixels
-    splash = QSplashScreen(pixmap)  # Create splash screen
-    splash.show()  # Show splash screen
-    appctxt.app.processEvents()
+    threadpool = QThreadPool()  # Start threadpool
+    worker = Worker(splash(appctxt))  # Create splash screen
+    threadpool.start(worker)  # Start worker
 
-    time.sleep(1.5)
-    appctxt.run(init=True)  # Get main window
-    splash.finish(appctxt.main_window)  # Wait for main window to be displayed
     exit_code = appctxt.run()      # 2. Invoke appctxt.app.exec_()
     sys.exit(exit_code)
