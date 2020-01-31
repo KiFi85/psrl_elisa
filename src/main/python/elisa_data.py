@@ -121,8 +121,8 @@ class ELISAData:
 
         # Get ods and concs tables
         ods, concs = get_table_details(elisa.data)
-        od_html = ods.to_html(classes='od_table')
-        concs_html = concs.to_html(classes='concs_table', table_id='conc_tbl')
+        od_html = ods.to_html(classes='od_table', table_id='od_tbl')
+        concs_html = concs.to_html(classes='concs_table', table_id='concs_tbl')
 
         # Render html template to string
         version = self.ctx.build_settings['version']
