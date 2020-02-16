@@ -179,6 +179,9 @@ class ELISA:
         ids = self.find_parameter("Test name:", "ProtocolID")
         serotype = ids[0][0].replace("Test name: ", "")
         read_date = ids[0][1].replace("Date: ", "")
+        read_date = datetime.strptime(read_date, '%d/%m/%Y')
+        read_date = read_date.strftime('%d%b%y')
+
         read_time = ids[0][2].replace("Time: ", "")
 
         return serotype, read_date, read_time
