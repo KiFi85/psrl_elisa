@@ -1,7 +1,7 @@
 from PyQt5 import QtWidgets
 from PyQt5.QtGui import QPalette, QColor
 from PyQt5.QtCore import QSettings, QObject, pyqtSignal, QRunnable, pyqtSlot, QThreadPool
-from PyQt5.QtWidgets import QLabel, QGridLayout, QWidget, QVBoxLayout, QPushButton, \
+from PyQt5.QtWidgets import QMainWindow, QLabel, QGridLayout, QWidget, QVBoxLayout, QPushButton, \
     QTextEdit, QHBoxLayout, QTabWidget, QLineEdit, QSizePolicy, \
     QGroupBox, QCheckBox, QProgressBar, QFileDialog, QApplication, QMessageBox, QComboBox
 from datetime import datetime
@@ -13,6 +13,7 @@ from elisa import ELISA
 from error_handling import RangeNotFoundError
 import time
 import os
+import pandas as pd
 from pathlib import Path
 import xlwings as xw
 import traceback
@@ -99,6 +100,9 @@ class DataTab(QWidget):
         # ERror log
         self.error_log = None
 
+        # Make amendments boolean
+        self.make_amendments = False
+
         # Layout spacing
         layout_main.setSpacing(20)
 
@@ -128,13 +132,14 @@ class DataTab(QWidget):
 
         # Amendments
         self.check_amend = QCheckBox(objectName="check_amend", text="Process data with amended plate fails")
-        label_check_amend = QLabel(text="Process data with amended plate fails")
+        self.check_amend.toggled.connect(lambda: self.amend_checkbox_changed(self.check_amend))
 
         # Add widgets
         layout_files.addWidget(label, 1, 0)
         layout_files.addWidget(self.txt_mars, 1, 1)
         layout_files.addWidget(self.btn_mars, 1, 2)
-        layout_files.addWidget(self.check_amend, 2, 0, 1, 2)
+        layout_files.addWidget(QWidget(), 2, 0)
+        layout_files.addWidget(self.check_amend, 3, 0, 1, 2)
         # layout_files.addWidget(label_check_amend, 2, 1)
 
         # Parameter group box
@@ -875,10 +880,11 @@ class DataTab(QWidget):
         self.error_log.append("")
         self.error_log.append("")
 
-    def display_error_box(self, warning="An error has occurred"):
+    def display_error_box(self, warning="An error has occurred", prompt_error=True):
         """ Display a generic error message """
 
-        warning = warning + "\nSee Error Log for more details"
+        if prompt_error:
+            warning = warning + "\nSee Error Log for more details"
 
         err_box = QMessageBox(self)
         err_box.setIcon(QMessageBox.Warning)
@@ -930,6 +936,56 @@ class DataTab(QWidget):
         else:
             line_edit.setEnabled(False)
 
+    def amend_checkbox_changed(self, cbox):
+        """ If user selects to make amendments """
+
+        # Determine whether checked or unchecked
+        if cbox.isChecked():
+
+            # Check that there is a F007 loaded
+            if not self.f007_file:
+                self.display_error_box(warning="A F007 is required before adding amendments", prompt_error=False)
+                cbox.setChecked(False)
+                return
+
+            # Check F007 is valid - if so, load sample table
+            sample_table = self.get_sample_table()
+
+            if sample_table is None:  # If not valid F007
+                self.display_error_box(warning="This doesn't appear to be a valid F007", prompt_error=False)
+                return
+            elif sample_table.empty:  # IF valid F007 but no sample table
+                self.display_error_box(warning="Sample Table appears to be empty", prompt_error=False)
+                return
+            else:  # Open amendments page
+                print(self.geometry.x())
+                # self.NewWindow = AmendmentsWindow(self.geometry())
+                # self.NewWindow.show()
+
+
+
+            # If so, load amendments page
+
+
+    def get_sample_table(self):
+        """ Loose check to see if expected sheets are in F007 and return
+            sample table as dataframe """
+
+        # Excel Object
+        xl = pd.ExcelFile(self.f007_file)
+
+        # Get all sheet names
+        all_sheets = xl.sheet_names
+
+        # Test for these three sheets
+        # If detect all, parse sample table
+        test_list = ['Plate Layout', 'Sample Table', 'Sponsors and Study IDs']
+        if all(x in all_sheets for x in test_list):
+            df = xl.parse('Sample Table')
+            return df
+        else:
+            return None
+
 
     def general_popup(self, message):
         """ A general notice popup box"""
@@ -944,6 +1000,7 @@ class DataTab(QWidget):
         """ Search for and select F007 containing assay details """
 
         self.f007_file = ""
+        self.check_amend.setChecked(False)
         settings = QSettings()
         # Get default directory - check if one has been previously saved
         saved_dir = settings.value("f007_dir") or ""
@@ -1108,3 +1165,12 @@ def find_widget(obj_name):
             break
 
     return widget
+
+class AmendmentsWindow(QMainWindow):
+
+    def __init__(self, geometry, *args, **kwargs):
+        super(AmendmentsWindow, self).__init__(*args, **kwargs)
+
+        self.setWindowTitle("Amend Plate/Block Fails")
+        self.setGeometry(geometry)
+        print(geometry)
