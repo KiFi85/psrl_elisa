@@ -135,14 +135,17 @@ class DataTab(QWidget):
         self.group_box = QGroupBox()
         self.group_box.setObjectName("grp_box")
         self.group_box.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+
         # Grid layout for group box
         group_layout = QGridLayout(self.group_box)
         self.group_box.setTitle("Select Parameters")
 
+        """ GROUP BOX WIDGETS"""
         # Options (clinical/validation/custom) dropdown
         self.combo_options = QComboBox(objectName="combo_options")
         [self.combo_options.addItems(x for x in ["Clinical", "Validation", "Custom"])]
         self.combo_options.currentIndexChanged[str].connect(self.combo_changed)
+
 
         # OD check boxes
         self.cb_upper_od = QCheckBox(objectName="cb_upper_od")
@@ -168,7 +171,7 @@ class DataTab(QWidget):
         self.txt_od_lower = QLineEdit(objectName="txt_lower_od")
         self.txt_od_lower.setMaximumWidth(100)
         self.txt_od_lower.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-        # Layout
+        # Group box Layout
         group_layout.addWidget(QLabel("Select pre-defined parameters"), 0, 0, 1, 1)
         group_layout.addWidget(self.combo_options, 0, 1, 1, 1)
         group_layout.addWidget(QLabel(""), 1, 0, 1, 2)
@@ -179,6 +182,7 @@ class DataTab(QWidget):
         group_layout.addWidget(self.txt_od_upper, 2, 1, 1, 1)
         group_layout.addWidget(self.txt_od_lower, 3, 1, 1, 1)
 
+        # Add groupboxes to layout
         layout_options.addWidget(self.group_box)
         widget = QWidget()
         widget.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
@@ -919,6 +923,7 @@ class DataTab(QWidget):
             line_edit.setEnabled(True)
         else:
             line_edit.setEnabled(False)
+
 
     def general_popup(self, message):
         """ A general notice popup box"""

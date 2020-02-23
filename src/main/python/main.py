@@ -9,7 +9,7 @@ from PyQt5.QtGui import QPalette, QColor, QPixmap
 from PyQt5.QtCore import QSettings, QByteArray, Qt, QThreadPool
 from PyQt5.QtWidgets import QApplication, QMainWindow, QStackedWidget, QAction, QSizePolicy, QLineEdit, QStyleFactory, QCheckBox, \
     QComboBox, QSplashScreen
-from datacheck_page import PageDataCheck
+from final_master_page import PageFinalMaster
 from elisa_data_page import PageData, Worker
 from gantt_page import PageGantt
 from settings_page import PageSettings
@@ -128,6 +128,7 @@ class MainWindow(QMainWindow):
         palette.setColor(QPalette.Window, self.back_colour)
         self.setPalette(palette)
 
+
         # stacked - Main Data window with Tabs
         self.stacked = QStackedWidget()
         # Add pages to stacked widget
@@ -135,11 +136,13 @@ class MainWindow(QMainWindow):
         self.stacked.addWidget(PageSettings(ctx=self.ctx, objectName="path_settings"))
         self.stacked.addWidget(PageGantt(ctx=self.ctx, objectName="gantt_page"))
         self.stacked.addWidget(PageHelp(ctx=self.ctx, objectName="help_page"))
-        self.stacked.addWidget(PageDataCheck(ctx=self.ctx, objectName="data_check"))
 
         # Retrieve previous settings
-        self.get_saved_paths()
+        self.MASTER_PATH = self.get_saved_paths()
         self.get_saved_print_settings()
+
+        self.stacked.addWidget(PageFinalMaster(ctx=self.ctx, master_path=self.MASTER_PATH, objectName="final_master"))
+
 
         # Create menu bar
         status_bar = self.statusBar()
@@ -170,12 +173,12 @@ class MainWindow(QMainWindow):
         help_action = self.create_action("&Help", self.show_help,
                                          'Ctrl+H', tip="Show help documentation")
 
-        datacheck_action = self.create_action("&ELISA Data Checking", lambda: self.stacked.setCurrentIndex(4),
-                                              'Ctrl+K', "Run the post-study data checking and re-formatting")
+        final_master_action = self.create_action("&Create Final Master File", lambda: self.stacked.setCurrentIndex(4),
+                                              'Ctrl+F', "Generate a Final Master File")
 
         # Add actions
         self.add_actions(file_menu, [None, exit_action])
-        self.add_actions(data_menu, [data_action, datacheck_action])
+        self.add_actions(data_menu, [data_action, final_master_action])
         self.add_actions(report_menu, [gantt_action])
         self.add_actions(settings_menu, [settings_action])
         self.add_actions(help_menu, [help_action])
@@ -209,6 +212,7 @@ class MainWindow(QMainWindow):
             else:  # Add separator if no action
                 target.addSeparator()
 
+
     def show_help(self):
         """ Open help file in browser """
 
@@ -236,7 +240,14 @@ class MainWindow(QMainWindow):
             saved_text = settings.value(obj_name) or ""
             s_page.findChild(QLineEdit, obj_name).setText(saved_text)
 
+            if obj_name == "master_path":
+                master_path = saved_text
+
         self.restoreGeometry(settings.value("MainWindow/Geometry", QByteArray()))
+
+        return master_path
+
+
 
     def get_saved_print_settings(self):
         """ Get the settings for last options selected on ELISA data processing page """
