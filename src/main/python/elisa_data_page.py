@@ -102,6 +102,7 @@ class DataTab(QWidget):
         # Layout spacing
         layout_main.setSpacing(20)
 
+        """ F007 and MARS Files browsing, amendments (layout_files) """
         # F007 details
         label = QLabel("Select F007 file:")
         self.txt_f007 = QLineEdit(objectName="txt_f007")
@@ -125,11 +126,16 @@ class DataTab(QWidget):
         self.btn_mars.clicked.connect(self.btn_mars_clicked)
         self.mars_files = []
 
+        # Amendments
+        self.check_amend = QCheckBox(objectName="check_amend", text="Process data with amended plate fails")
+        label_check_amend = QLabel(text="Process data with amended plate fails")
+
         # Add widgets
         layout_files.addWidget(label, 1, 0)
         layout_files.addWidget(self.txt_mars, 1, 1)
         layout_files.addWidget(self.btn_mars, 1, 2)
-        layout_files.addWidget(QWidget(), 2, 0)
+        layout_files.addWidget(self.check_amend, 2, 0, 1, 2)
+        # layout_files.addWidget(label_check_amend, 2, 1)
 
         # Parameter group box
         self.group_box = QGroupBox()
