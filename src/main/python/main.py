@@ -113,6 +113,7 @@ class MainWindow(QMainWindow):
 
         self.ctx = ctx  # Application context
         self.setStyle(QStyleFactory.create("Fusion"))
+        self.setObjectName("app_main_window")
 
         x, y, w, h = get_geometry()  # Get optimal geometry
         self.setGeometry(x, y, w, h)

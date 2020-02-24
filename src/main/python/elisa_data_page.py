@@ -1,9 +1,10 @@
 from PyQt5 import QtWidgets
 from PyQt5.QtGui import QPalette, QColor
-from PyQt5.QtCore import QSettings, QObject, pyqtSignal, QRunnable, pyqtSlot, QThreadPool
+from PyQt5.QtCore import QSettings, QObject, pyqtSignal, QRunnable, pyqtSlot, QThreadPool, Qt
 from PyQt5.QtWidgets import QMainWindow, QLabel, QGridLayout, QWidget, QVBoxLayout, QPushButton, \
     QTextEdit, QHBoxLayout, QTabWidget, QLineEdit, QSizePolicy, \
     QGroupBox, QCheckBox, QProgressBar, QFileDialog, QApplication, QMessageBox, QComboBox
+from win32api import GetSystemMetrics
 from datetime import datetime
 from settings_page import get_default_dir, PageSettings
 from assay import Assay
@@ -943,8 +944,9 @@ class DataTab(QWidget):
         if cbox.isChecked():
 
             # Check that there is a F007 loaded
-            if not self.f007_file:
-                self.display_error_box(warning="A F007 is required before adding amendments", prompt_error=False)
+            if not self.f007_file or not self.mars_files:
+                self.display_error_box(warning="Please select F007 and MARS files\nbefore adding amendments",
+                                       prompt_error=False)
                 cbox.setChecked(False)
                 return
 
@@ -958,9 +960,9 @@ class DataTab(QWidget):
                 self.display_error_box(warning="Sample Table appears to be empty", prompt_error=False)
                 return
             else:  # Open amendments page
-                print(self.geometry.x())
-                # self.NewWindow = AmendmentsWindow(self.geometry())
-                # self.NewWindow.show()
+
+                self.NewWindow = AmendmentsWindow(self.geometry())
+                self.NewWindow.show()
 
 
 
@@ -1168,9 +1170,78 @@ def find_widget(obj_name):
 
 class AmendmentsWindow(QMainWindow):
 
-    def __init__(self, geometry, *args, **kwargs):
+    def __init__(self, f007, marsfiles, *args, **kwargs):
         super(AmendmentsWindow, self).__init__(*args, **kwargs)
 
-        self.setWindowTitle("Amend Plate/Block Fails")
-        self.setGeometry(geometry)
-        print(geometry)
+        self.setWindowTitle("Amendments Page")
+        self.setWindowModality(Qt.ApplicationModal)
+        palette = self.palette()
+        palette.setColor(QPalette.Window, QColor(141, 185, 202))
+        self.setAutoFillBackground(True)
+        self.setPalette(palette)
+
+        self.f007 = f007  # F007 file
+        self.marsfiles = marsfiles  # MARS FILES LIST
+
+        x, y, w, h = get_geometry()  # Get optimal geometry
+        self.setFixedSize(w, h)  # No resize
+
+        # Layouts
+        # layout_main = QVBoxLayout(self)
+        self.layout = QGridLayout(self)
+        self.layout.setSpacing(0)
+
+        """ PLATE/BLOCK COMBO """
+        label_plateblock = QLabel(text="Apply amendment to plate or block")
+        self.combo_plateblock = QComboBox(objectName="combo_plateblock")
+        [self.combo_plateblock.addItems(x for x in ["Plate", "Block"])]
+        self.combo_plateblock.currentIndexChanged[str].connect(self.plateblock_changed)
+
+        """ SELECT PLATES/BLOCKS """
+        label_selection = QLabel(text="Select plate/block")
+        self.combo_selection = QComboBox(objectName="combo_selection")
+        items_list = self.get_selection_items()
+
+        """ BLOCK """
+
+        """ FAIL CODES """
+        """ ADD BUTTON """
+
+        """ LISTBOX WITH BLOCK/PLATES FOR AMENDMENTS """
+        """ ADD ITEMS TO LAYOUT """
+        self.layout.addWidget(label_plateblock, 0, 0)
+        self.layout.addWidget(self.combo_plateblock, 1, 0)
+        self.layout.addWidget(QWidget(), 2, 0, 10, 5)
+        # layout_main.addLayout(self.layout)
+        widget = QWidget()
+        widget.setLayout(self.layout)
+        self.setCentralWidget(widget)
+
+    def get_selection_items(self):
+        """ Get a list of plates or blocks to add to selection combo
+            Can get list of blocks from F007 and plates from MARS files """
+
+
+    def plateblock_changed(self, selection):
+        """ Function to get list of blocks or plates """
+
+        if selection == "Plate":
+            print("selected plates")
+        else:
+            print("selected blocks")
+
+
+def get_geometry():
+    """ Get the screen resolution and return the optimal dimensions on startup """
+
+    # Get screen resolution in pixels
+    screen_width = GetSystemMetrics(0)
+    screen_height = GetSystemMetrics(1)
+
+    # Get geometry relative to 1920 x 1080 screen
+    x = 450 / 1920 * screen_width
+    y = 125 / 1080 * screen_height
+    width = 400 / 1920 * screen_width
+    height = 800 / 1080 * screen_height
+
+    return x, y, width, height
