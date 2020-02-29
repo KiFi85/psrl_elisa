@@ -3,7 +3,7 @@ from PyQt5.QtGui import QPalette, QColor
 from PyQt5.QtCore import QSettings, QObject, pyqtSignal, QRunnable, pyqtSlot, QThreadPool, Qt
 from PyQt5.QtWidgets import QMainWindow, QLabel, QGridLayout, QWidget, QVBoxLayout, QPushButton, \
     QTextEdit, QHBoxLayout, QTabWidget, QLineEdit, QSizePolicy, \
-    QGroupBox, QCheckBox, QProgressBar, QFileDialog, QApplication, QMessageBox, QComboBox
+    QGroupBox, QCheckBox, QProgressBar, QFileDialog, QApplication, QMessageBox, QComboBox, QListWidget
 from win32api import GetSystemMetrics
 from datetime import datetime
 from settings_page import get_default_dir, PageSettings
@@ -961,7 +961,8 @@ class DataTab(QWidget):
                 return
             else:  # Open amendments page
 
-                self.NewWindow = AmendmentsWindow(self.geometry())
+                self.NewWindow = AmendmentsWindow(f007=self.f007_file, sample_table=sample_table,
+                                                  marsfiles=self.mars_files)
                 self.NewWindow.show()
 
 
@@ -983,7 +984,9 @@ class DataTab(QWidget):
         # If detect all, parse sample table
         test_list = ['Plate Layout', 'Sample Table', 'Sponsors and Study IDs']
         if all(x in all_sheets for x in test_list):
-            df = xl.parse('Sample Table')
+            df = xl.parse('Sample Table',
+                          dtype={'Sample 1': 'str', 'Sample 2': 'str',
+                                 'Sample 3': 'str', 'Sample 4': 'str'})
             return df
         else:
             return None
@@ -1170,7 +1173,7 @@ def find_widget(obj_name):
 
 class AmendmentsWindow(QMainWindow):
 
-    def __init__(self, f007, marsfiles, *args, **kwargs):
+    def __init__(self, f007, sample_table, marsfiles, *args, **kwargs):
         super(AmendmentsWindow, self).__init__(*args, **kwargs)
 
         self.setWindowTitle("Amendments Page")
@@ -1180,55 +1183,260 @@ class AmendmentsWindow(QMainWindow):
         self.setAutoFillBackground(True)
         self.setPalette(palette)
 
+        """ PARAMETERS """
         self.f007 = f007  # F007 file
         self.marsfiles = marsfiles  # MARS FILES LIST
+        self.sample_table = sample_table  # SAMPLE TABLE
+        self.sample_table.set_index('Plate ID', inplace=True)
+
+        """ DROPDOWN SETTINGS """
+        self.plateblock = "Plate"
+        self.selection = ""
+        self.samples = []
 
         x, y, w, h = get_geometry()  # Get optimal geometry
         self.setFixedSize(w, h)  # No resize
 
         # Layouts
         # layout_main = QVBoxLayout(self)
+
         self.layout = QGridLayout(self)
-        self.layout.setSpacing(0)
+        self.layout.setSpacing(10)
+
+        """ GET PLATE IDs """
+        self.plate_list = [get_plate_id(f) for f in self.marsfiles]
+        self.selection = self.plate_list[0]
 
         """ PLATE/BLOCK COMBO """
-        label_plateblock = QLabel(text="Apply amendment to plate or block")
+        label_plateblock = QLabel(text="Choose amendment to\nplate, block or sample", alignment=Qt.AlignBottom)
         self.combo_plateblock = QComboBox(objectName="combo_plateblock")
-        [self.combo_plateblock.addItems(x for x in ["Plate", "Block"])]
+        [self.combo_plateblock.addItems(x for x in ["Plate", "Block", "Sample"])]
         self.combo_plateblock.currentIndexChanged[str].connect(self.plateblock_changed)
 
-        """ SELECT PLATES/BLOCKS """
-        label_selection = QLabel(text="Select plate/block")
+        """ SELECT PLATES/BLOCKS - GIVE A LIST OF PLATES OR BLOCKS DEPENDENT ON OPTION ABOVE"""
+        label_selection = QLabel(text="Select plate or block", alignment=Qt.AlignBottom)
         self.combo_selection = QComboBox(objectName="combo_selection")
-        items_list = self.get_selection_items()
+        self.add_plate_list()
+        self.combo_selection.currentIndexChanged[str].connect(self.selection_changed)
 
-        """ BLOCK """
+        """ SAMPLES """
+        label_samples = QLabel(text="Select sample(s)", alignment=Qt.AlignBottom)
+        self.combo_samples = QComboBox(objectName="combo_samples")
+        self.combo_samples.setEnabled(False)
+        self.combo_samples.currentIndexChanged[str].connect(self.samples_changed)
 
-        """ FAIL CODES """
+        """ FAIL CODES/SAMPLE TESTED IN ERROR """
+        label_fails = QLabel(text="Select amendment to apply", alignment=Qt.AlignBottom)
+        self.combo_fails = QComboBox(objectName="combo_fails")
+        # Default plate fail codes
+        fail_list = ['R1', "R6", "R7", "R13"]
+        [self.combo_fails.addItems(f for f in fail_list)]
+
         """ ADD BUTTON """
+        self.btn_add = QPushButton(text="Add", objectName="btn_add")
 
         """ LISTBOX WITH BLOCK/PLATES FOR AMENDMENTS """
+        self.listbox = QListWidget()
+
+        """ BUTTON OK AND CANCEL """
+        self.btn_ok = QPushButton(text="OK")
+        self.btn_cancel = QPushButton(text="Cancel")
+
+
         """ ADD ITEMS TO LAYOUT """
-        self.layout.addWidget(label_plateblock, 0, 0)
-        self.layout.addWidget(self.combo_plateblock, 1, 0)
-        self.layout.addWidget(QWidget(), 2, 0, 10, 5)
+        label_w = 10
+        combo_w = 5  # Combo and label grid width
+        btn_w = 2
+        list_w = 10
+
+        self.layout.addWidget(label_plateblock, 0, 0, 1, label_w)
+        self.layout.addWidget(self.combo_plateblock, 1, 0, 1, combo_w)  # PLATE/BLOCK/SAMPLES
+
+        self.layout.addWidget(label_selection, 2, 0, 1, label_w)
+        self.layout.addWidget(self.combo_selection, 3, 0, 1, combo_w)  # SELECTION OF PLATE/BLOCK
+
+        self.layout.addWidget(label_samples, 4, 0, 1, label_w)
+        self.layout.addWidget(self.combo_samples, 5, 0, 1, combo_w)  # SELECTION OF SAMPLES
+
+        self.layout.addWidget(label_fails, 6, 0, 1, label_w)
+        self.layout.addWidget(self.combo_fails, 7, 0, 1, combo_w) # SELECT FROM LIST OF FAIL CODES/AMENDMENTS
+
+        self.layout.addWidget(QWidget(), 8, 0, 1, combo_w)
+        self.layout.addWidget(self.btn_add, 9, 0, 1, btn_w, Qt.AlignBottom)  # ADD BUTTON
+        self.layout.addWidget(self.listbox, 10, 0, 10, list_w)  # LISTBOX
+        self.layout.addWidget(self.btn_ok, 20, 5, 1, 2)  # OK BUTTON
+        self.layout.addWidget(self.btn_cancel, 20, 8, 1, 2)  # CANCEL BUTTON
         # layout_main.addLayout(self.layout)
+
+        """ SET CENTRAL WIDGET """
         widget = QWidget()
         widget.setLayout(self.layout)
+        widget.setContentsMargins(20, 20, 20, 20)
         self.setCentralWidget(widget)
+
+    def add_plate_list(self):
+        """ Add a list of plate IDs to the selection box """
+
+        # Clear the selection combobox and set default selection to first plate
+        self.combo_selection.clear()
+        [self.combo_selection.addItems(x for x in self.plate_list)]
+        self.selection = self.plate_list[0]
+
+    def add_block_list(self):
+        """ Add a list of blocks to the selection box """
+
+        # Clear selection box
+        self.combo_selection.clear()
+        # If first run just add list of blocks
+        # If mixed add all single letters and duplicate rows
+        # If repeats add all duplicates
+
+        """ FIRST LOOK FOR ANY SINGLE LETTER (FIRST RUN BLOCKS) """
+        df = self.sample_table
+        block_list = []
+        mask = (df.index.str.len() == 1)  # Mask only single letters in sample table
+        fr_blocks = df.loc[mask].index.tolist()  # Get row number of single letters in index
+        [block_list.append(f) for f in fr_blocks]
+
+        """ REPEATS """
+
+        # If there are more blocks than picked up from first run blocks
+        if len(fr_blocks) < df.shape[0]:
+
+            # Colnames to find duplicated samples across plate
+            # Index is numeric
+            df.reset_index(inplace=True)
+            # Only sample columns (not plate IDs)
+            colnames = df.columns[1:].tolist()
+            # Get list of duplicates - keep all
+            dup_rows = df.duplicated(subset=colnames, keep=False)
+            # Subset df
+            df_dups = df[dup_rows]
+
+            # If duplicates
+            if not df_dups.empty:
+                # Group by duplicate and create comma separated list
+                grouped = df_dups.groupby(colnames)
+                r_blocks = grouped.agg(lambda x: ', '.join(x))['Plate ID'].tolist()
+                [block_list.append(f) for f in r_blocks]
+            else:
+                block_list.append('None')
+
+            # Set sample table index to plate ID
+            self.sample_table.set_index('Plate ID', inplace=True)
+
+        # Add blocks to selection combo
+        [self.combo_selection.addItems(x for x in block_list)]
+        self.selection = block_list[0]
+
+
+    def add_sample_list(self):
+        """ Add a list of sample IDs to the selection box based on the selected plate
+            in the plate combobox"""
+
+        # First get whether first run/repeats/mixed to determine how to retrieve sample IDs
+        # Could 'try' and retrieve the plate ID from the sample list, if not, look for letter
+        # Finally - can't find plate in list
+
+        # Get plate ID from dropdown (and/or blocks from sample table)
+        plate_id = self.selection
+
+        try:
+            self.samples = self.sample_table.loc[plate_id].tolist()
+        except KeyError:
+            try:
+                self.samples = self.sample_table.loc[plate_id[-1]].tolist()
+            except KeyError:
+                # print("plate not found in sample table")
+                return
+
+
+        # Clear sample list and replace with samples from plate lookup
+        self.combo_samples.clear()
+        [self.combo_samples.addItems(str(x) for x in self.samples)]
 
     def get_selection_items(self):
         """ Get a list of plates or blocks to add to selection combo
             Can get list of blocks from F007 and plates from MARS files """
 
 
-    def plateblock_changed(self, selection):
+    def plateblock_changed(self, plateblock):
         """ Function to get list of blocks or plates """
 
-        if selection == "Plate":
-            print("selected plates")
+        # Change plateblock selection
+        self.plateblock = plateblock
+
+        if plateblock == "Plate":
+
+            # Disable and clear sample box
+            self.combo_samples.clear()
+            self.combo_samples.setEnabled(False)
+
+            # Add plate_list to selection combo box
+            self.add_plate_list()
+
+        elif plateblock == "Block":  # Get list of blocks
+
+            # Disable sample box
+            self.combo_samples.clear()
+            self.combo_samples.setEnabled(False)
+
+            # Add list of blocks to combobox
+            self.add_block_list()
+
         else:
-            print("selected blocks")
+
+            # Enable Sample dropdown
+            self.combo_samples.setEnabled(True)
+            # Add plate list to selection combo box
+            self.add_plate_list()
+
+    def selection_changed(self, selection):
+        """ When plate or block has changed - change sample list if 'Sample' selected
+            in the combo_plateblock. Change list of amendments - Tested in error/<0.15/QNS for samples
+            Various plate fails and dropped plate for plate and R35 for block (maybe management decision
+            or technician error as well) """
+
+        # Update selection of plate/block
+        self.selection = selection
+        # Check the selection in combo_plateblock
+        # If Plate - just change possible amendments and disable sample list
+        # If block - just change possible amendments and disable sample list
+        # If Sample - change sample list (self.samples and dropdown)
+
+        if self.plateblock == "Plate":
+
+            # Add list of possible amendments for plate fail
+            self.combo_fails.clear()
+            fail_list = ['R1', "R6", "R7", "R13"]
+            [self.combo_fails.addItems(f for f in fail_list)]
+
+        elif self.plateblock == "Block":
+
+            # Add list of possible amendments for block fail
+            self.combo_fails.clear()
+            fail_list = ['R1', "R6", "R7", "R13", "R35"]
+            [self.combo_fails.addItems(f for f in fail_list)]
+
+        elif self.plateblock == "Sample" and self.selection:
+
+            # Clear amendments box
+            self.combo_fails.clear()
+
+            # Get samples associated with plate
+            self.add_sample_list()
+
+    def samples_changed(self, sample):
+        """ If user selects a samples from dropdown or list is updated """
+
+        # Add list of possible amendments for sample
+        self.combo_fails.clear()
+
+        # If there is a sample ID update amendments box
+        if self.combo_samples.currentText():
+
+            self.combo_fails.addItems(['Tested in error'])
+
 
 
 def get_geometry():
@@ -1241,7 +1449,34 @@ def get_geometry():
     # Get geometry relative to 1920 x 1080 screen
     x = 450 / 1920 * screen_width
     y = 125 / 1080 * screen_height
-    width = 400 / 1920 * screen_width
+    width = 500 / 1920 * screen_width
     height = 800 / 1080 * screen_height
 
     return x, y, width, height
+
+
+def get_plate_id(filename):
+    """ Get technician, date and plate ID from barcode """
+
+    barcode = filename
+    barcode = barcode.split("_")[1].split(".")[0]
+    barcode = barcode + "NO"
+
+    # Check if last character is alpga
+    if barcode[0].isalpha():
+        bstring = barcode[1:]
+    else:
+        bstring = barcode
+
+    # Get details - extract portion of barcode
+
+    if bstring[-2:].isalpha():  # If two letters at end
+        plate_id = bstring[:-10]
+
+    elif bstring[-1].isalpha():  # If one letter at end
+        plate_id = bstring[:-9]
+
+    else:  # If no letters at end
+        plate_id = bstring[:-8]
+
+    return plate_id

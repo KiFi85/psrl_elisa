@@ -148,6 +148,36 @@ class ELISA:
 
         return barcode, reader
 
+    def get_barcode_details(self):
+        """ Get technician, date and plate ID from barcode """
+
+        # Check if last character is alpga
+        if self.barcode[0].isalpha():
+            bstring = self.barcode[1:]
+
+        # Get details - extract portion of barcode
+
+        if bstring[-2:].isalpha():  # If two letters at end
+            bdate = bstring[-8:-2]
+            btech = bstring[-10:-8]
+            bplate = bstring[:-10]
+
+        elif bstring[-1].isalpha():  # If one letter at end
+
+            bdate = bstring[-7:-1]
+            btech = bstring[-9:-7]
+            bplate = bstring[:-9]
+
+        else:  # If no letters at end
+            bdate = bstring[-6:]
+            btech = bstring[-8:-6]
+            bplate = bstring[:-8]
+
+        bdate = datetime.strptime(bdate, '%d%m%y')
+        bdate = bdate.strftime('%d-%b-%y')
+
+        return btech, bdate, bplate
+
     def template_applied(self):
         """ Check that ICH template is applied. Return True if it has or False """
 
@@ -198,36 +228,6 @@ class ELISA:
             rsquared = None
 
         return rsquared
-
-    def get_barcode_details(self):
-        """ Get technician, date and plate ID from barcode """
-
-        # Check if last character is alpga
-        if self.barcode[0].isalpha():
-            bstring = self.barcode[1:]
-
-        # Get details - extract portion of barcode
-
-        if bstring[-2:].isalpha():  # If two letters at end
-            bdate = bstring[-8:-2]
-            btech = bstring[-10:-8]
-            bplate = bstring[:-10]
-
-        elif bstring[-1].isalpha():  # If one letter at end
-
-            bdate = bstring[-7:-1]
-            btech = bstring[-9:-7]
-            bplate = bstring[:-9]
-
-        else:  # If no letters at end
-            bdate = bstring[-6:]
-            btech = bstring[-8:-6]
-            bplate = bstring[:-8]
-
-        bdate = datetime.strptime(bdate, '%d%m%y')
-        bdate = bdate.strftime('%d-%b-%y')
-
-        return btech, bdate, bplate
 
     def get_save_name(self):
         """ Get the file name and pdf path for saved pdfs"""
@@ -902,4 +902,5 @@ def round_to3(val):
             new_val = val
 
     return new_val
+
 
