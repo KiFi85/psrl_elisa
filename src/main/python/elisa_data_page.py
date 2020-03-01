@@ -1,9 +1,10 @@
 from PyQt5 import QtWidgets
-from PyQt5.QtGui import QPalette, QColor
+from PyQt5.QtGui import QPalette, QColor, QFont
 from PyQt5.QtCore import QSettings, QObject, pyqtSignal, QRunnable, pyqtSlot, QThreadPool, Qt
 from PyQt5.QtWidgets import QMainWindow, QLabel, QGridLayout, QWidget, QVBoxLayout, QPushButton, \
     QTextEdit, QHBoxLayout, QTabWidget, QLineEdit, QSizePolicy, \
-    QGroupBox, QCheckBox, QProgressBar, QFileDialog, QApplication, QMessageBox, QComboBox, QListWidget
+    QGroupBox, QCheckBox, QProgressBar, QFileDialog, QApplication, QMessageBox, QComboBox, QTableWidget, \
+    QTableWidgetItem, QHeaderView
 from win32api import GetSystemMetrics
 from datetime import datetime
 from settings_page import get_default_dir, PageSettings
@@ -1193,6 +1194,7 @@ class AmendmentsWindow(QMainWindow):
         self.plateblock = "Plate"
         self.selection = ""
         self.samples = []
+        self.amend_cnt = 0
 
         x, y, w, h = get_geometry()  # Get optimal geometry
         self.setFixedSize(w, h)  # No resize
@@ -1234,9 +1236,19 @@ class AmendmentsWindow(QMainWindow):
 
         """ ADD BUTTON """
         self.btn_add = QPushButton(text="Add", objectName="btn_add")
+        self.btn_add.clicked.connect(self.add_amendment)
 
-        """ LISTBOX WITH BLOCK/PLATES FOR AMENDMENTS """
-        self.listbox = QListWidget()
+        """ TABLE WITH BLOCK/PLATES FOR AMENDMENTS """
+        self.table = QTableWidget()
+        self.table.setRowCount(8)
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels(['Plate/Block', 'Sample', 'Amendment'])
+        self.table.verticalHeader().setVisible(False)
+        header_font = QFont()
+        header_font.setBold(True)
+        self.table.horizontalHeaderItem(0).setFont(header_font)
+        self.table.horizontalHeaderItem(1).setFont(header_font)
+        self.table.horizontalHeaderItem(2).setFont(header_font)
 
         """ BUTTON OK AND CANCEL """
         self.btn_ok = QPushButton(text="OK")
@@ -1263,7 +1275,7 @@ class AmendmentsWindow(QMainWindow):
 
         self.layout.addWidget(QWidget(), 8, 0, 1, combo_w)
         self.layout.addWidget(self.btn_add, 9, 0, 1, btn_w, Qt.AlignBottom)  # ADD BUTTON
-        self.layout.addWidget(self.listbox, 10, 0, 10, list_w)  # LISTBOX
+        self.layout.addWidget(self.table, 10, 0, 10, list_w)  # table
         self.layout.addWidget(self.btn_ok, 20, 5, 1, 2)  # OK BUTTON
         self.layout.addWidget(self.btn_cancel, 20, 8, 1, 2)  # CANCEL BUTTON
         # layout_main.addLayout(self.layout)
@@ -1273,6 +1285,11 @@ class AmendmentsWindow(QMainWindow):
         widget.setLayout(self.layout)
         widget.setContentsMargins(20, 20, 20, 20)
         self.setCentralWidget(widget)
+
+        # Adjust row height for table rows - default to 8 rows
+        table_height = self.table.height()
+        for row in range(self.table.rowCount()):
+            self.table.setRowHeight(row, table_height/7)
 
     def add_plate_list(self):
         """ Add a list of plate IDs to the selection box """
@@ -1354,6 +1371,36 @@ class AmendmentsWindow(QMainWindow):
         # Clear sample list and replace with samples from plate lookup
         self.combo_samples.clear()
         [self.combo_samples.addItems(str(x) for x in self.samples)]
+
+    def add_amendment(self):
+        """ Add the amendment to the table of amendments """
+
+        # Get plate ID(s)
+        plate_ids = self.combo_selection.currentText()
+        plate_list = plate_ids.split(",")
+        n_plates = len(plate_list)
+
+        # If more than 3 plates add ellipsis
+        if n_plates > 4:
+
+            plate_ids = ','.join(plate_list[:4]) + "..."
+
+        # Get sample (ALL for plate/block amendments)
+        if self.combo_plateblock.currentText() != "Sample":
+            samples = "ALL"
+        else:
+            samples = self.combo_samples.currentText()
+
+        # Get fail/amendment
+        amendment = self.combo_fails.currentText()
+
+        # Add to table
+        self.table.setItem(self.amend_cnt, 0, QTableWidgetItem(plate_ids))
+        self.table.setItem(self.amend_cnt, 1, QTableWidgetItem(samples))
+        self.table.setItem(self.amend_cnt, 2, QTableWidgetItem(amendment))
+
+        # Increment amend_cnt
+        self.amend_cnt += 1
 
     def get_selection_items(self):
         """ Get a list of plates or blocks to add to selection combo
