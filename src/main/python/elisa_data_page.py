@@ -103,7 +103,7 @@ class DataTab(QWidget):
         self.error_log = None
 
         # Make amendments boolean
-        self.make_amendments = False
+        self.amendments = pd.DataFrame()
 
         # Layout spacing
         layout_main.setSpacing(20)
@@ -174,6 +174,7 @@ class DataTab(QWidget):
         # Option check boxes
         self.cb_lloq = QCheckBox(objectName="cb_lloq", text="Apply LLOQ (<0.15)")
         self.cb_print = QCheckBox(objectName="cb_print", text="Print plate data")
+        self.cb_print.toggled.connect(lambda: self.print_checkbox_changed(self.cb_print))
 
         # OD text boxes
         self.txt_od_upper = QLineEdit(objectName="txt_upper_od")
@@ -229,6 +230,10 @@ class DataTab(QWidget):
         # Initialise all properties
         self.xl_id = None
         self.init_parms()
+
+    def print_checkbox_changed(self, cb):
+        pass
+        # print(self.amendments)
 
     def init_parms(self):
         """ Initialise all parameters - used at startup and when Run Button clicked again """
@@ -963,7 +968,7 @@ class DataTab(QWidget):
             else:  # Open amendments page
 
                 self.NewWindow = AmendmentsWindow(f007=self.f007_file, sample_table=sample_table,
-                                                  marsfiles=self.mars_files)
+                                                  marsfiles=self.mars_files, caller=self)
                 self.NewWindow.show()
 
 
@@ -1174,7 +1179,7 @@ def find_widget(obj_name):
 
 class AmendmentsWindow(QMainWindow):
 
-    def __init__(self, f007, sample_table, marsfiles, *args, **kwargs):
+    def __init__(self, f007, sample_table, marsfiles, caller=None, *args, **kwargs):
         super(AmendmentsWindow, self).__init__(*args, **kwargs)
 
         self.setWindowTitle("Amendments Page")
@@ -1183,6 +1188,8 @@ class AmendmentsWindow(QMainWindow):
         palette.setColor(QPalette.Window, QColor(141, 185, 202))
         self.setAutoFillBackground(True)
         self.setPalette(palette)
+        self.datapage = caller
+        self.df = pd.DataFrame(columns=['Plate', 'Sample', 'Amendment'])
 
         """ PARAMETERS """
         self.f007 = f007  # F007 file
@@ -1194,6 +1201,7 @@ class AmendmentsWindow(QMainWindow):
         self.plateblock = "Plate"
         self.selection = ""
         self.samples = []
+        self.amendment = ""
         self.amend_cnt = 0
 
         x, y, w, h = get_geometry()  # Get optimal geometry
@@ -1228,11 +1236,13 @@ class AmendmentsWindow(QMainWindow):
         self.combo_samples.currentIndexChanged[str].connect(self.samples_changed)
 
         """ FAIL CODES/SAMPLE TESTED IN ERROR """
-        label_fails = QLabel(text="Select amendment to apply", alignment=Qt.AlignBottom)
-        self.combo_fails = QComboBox(objectName="combo_fails")
+        label_amendments = QLabel(text="Select amendment to apply", alignment=Qt.AlignBottom)
+        self.combo_amendments = QComboBox(objectName="combo_amendments")
         # Default plate fail codes
         fail_list = ['R1', "R6", "R7", "R13"]
-        [self.combo_fails.addItems(f for f in fail_list)]
+        [self.combo_amendments.addItems(f for f in fail_list)]
+        self.amendment = fail_list[0]
+        self.combo_amendments.currentIndexChanged[str].connect(self.amendment_changed)
 
         """ ADD BUTTON """
         self.btn_add = QPushButton(text="Add", objectName="btn_add")
@@ -1249,10 +1259,13 @@ class AmendmentsWindow(QMainWindow):
         self.table.horizontalHeaderItem(0).setFont(header_font)
         self.table.horizontalHeaderItem(1).setFont(header_font)
         self.table.horizontalHeaderItem(2).setFont(header_font)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         """ BUTTON OK AND CANCEL """
         self.btn_ok = QPushButton(text="OK")
+        self.btn_ok.clicked.connect(self.ok_pressed)
         self.btn_cancel = QPushButton(text="Cancel")
+        self.btn_cancel.clicked.connect(sys.exit)
 
 
         """ ADD ITEMS TO LAYOUT """
@@ -1270,8 +1283,8 @@ class AmendmentsWindow(QMainWindow):
         self.layout.addWidget(label_samples, 4, 0, 1, label_w)
         self.layout.addWidget(self.combo_samples, 5, 0, 1, combo_w)  # SELECTION OF SAMPLES
 
-        self.layout.addWidget(label_fails, 6, 0, 1, label_w)
-        self.layout.addWidget(self.combo_fails, 7, 0, 1, combo_w) # SELECT FROM LIST OF FAIL CODES/AMENDMENTS
+        self.layout.addWidget(label_amendments, 6, 0, 1, label_w)
+        self.layout.addWidget(self.combo_amendments, 7, 0, 1, combo_w) # SELECT FROM LIST OF FAIL CODES/AMENDMENTS
 
         self.layout.addWidget(QWidget(), 8, 0, 1, combo_w)
         self.layout.addWidget(self.btn_add, 9, 0, 1, btn_w, Qt.AlignBottom)  # ADD BUTTON
@@ -1290,6 +1303,24 @@ class AmendmentsWindow(QMainWindow):
         table_height = self.table.height()
         for row in range(self.table.rowCount()):
             self.table.setRowHeight(row, table_height/7)
+
+    def ok_pressed(self):
+        """ Pass amendments back to datapage """
+
+        self.df.drop_duplicates(inplace=True)
+
+        # Check the user wants to commit
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Warning)
+        msg.setText("Are you sure you want to make these amendments?")
+        msg.setWindowTitle("Commit amendments")
+        msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+
+        return_val = msg.exec_()
+        if return_val == QMessageBox.Ok:
+            self.datapage.amendments = self.df
+
+        self.close()
 
     def add_plate_list(self):
         """ Add a list of plate IDs to the selection box """
@@ -1364,7 +1395,8 @@ class AmendmentsWindow(QMainWindow):
             try:
                 self.samples = self.sample_table.loc[plate_id[-1]].tolist()
             except KeyError:
-                # print("plate not found in sample table")
+                self.combo_samples.clear()
+                self.samples = []
                 return
 
 
@@ -1377,13 +1409,6 @@ class AmendmentsWindow(QMainWindow):
 
         # Get plate ID(s)
         plate_ids = self.combo_selection.currentText()
-        plate_list = plate_ids.split(",")
-        n_plates = len(plate_list)
-
-        # If more than 3 plates add ellipsis
-        if n_plates > 4:
-
-            plate_ids = ','.join(plate_list[:4]) + "..."
 
         # Get sample (ALL for plate/block amendments)
         if self.combo_plateblock.currentText() != "Sample":
@@ -1392,7 +1417,7 @@ class AmendmentsWindow(QMainWindow):
             samples = self.combo_samples.currentText()
 
         # Get fail/amendment
-        amendment = self.combo_fails.currentText()
+        amendment = self.combo_amendments.currentText()
 
         # Add to table
         self.table.setItem(self.amend_cnt, 0, QTableWidgetItem(plate_ids))
@@ -1401,6 +1426,51 @@ class AmendmentsWindow(QMainWindow):
 
         # Increment amend_cnt
         self.amend_cnt += 1
+
+        # Enter data to dataframe
+        if self.combo_plateblock.currentText() == "Block":
+            self.update_df_block()
+        else:
+            self.update_df_platesample()
+
+    def update_df_platesample(self):
+        """ Add the amendments to a dataframe to pass to datapage amendments
+            if plate or sample """
+
+        # Get next empty row from dataframe
+        next_row = len(self.df.index)
+
+        sample = self.combo_samples.currentText()
+        if not sample:
+            sample = ""
+
+        # Add data
+        self.df.loc[next_row] = [self.selection, sample, self.amendment]
+
+    def update_df_block(self):
+        """ Update the dataframe from a block """
+
+        next_row = len(self.df.index)
+        # Loop through plates and add if correct block
+
+        # If block only length 1, add all plates from that block
+        if len(self.selection) == 1:
+            for p in self.plate_list:
+
+                # If matches block - add
+                if p[-1] == self.selection:
+                    self.df.loc[next_row] = [p, "", self.amendment]
+                    next_row += 1
+
+        else:
+
+            # Get all plates in block (repeats)
+            plate_list = self.selection.split(",")
+
+            for p in plate_list:
+                self.df.loc[next_row] = [p, "", self.amendment]
+                next_row += 1
+
 
     def get_selection_items(self):
         """ Get a list of plates or blocks to add to selection combo
@@ -1454,21 +1524,21 @@ class AmendmentsWindow(QMainWindow):
         if self.plateblock == "Plate":
 
             # Add list of possible amendments for plate fail
-            self.combo_fails.clear()
+            self.combo_amendments.clear()
             fail_list = ['R1', "R6", "R7", "R13"]
-            [self.combo_fails.addItems(f for f in fail_list)]
+            [self.combo_amendments.addItems(f for f in fail_list)]
 
         elif self.plateblock == "Block":
 
             # Add list of possible amendments for block fail
-            self.combo_fails.clear()
+            self.combo_amendments.clear()
             fail_list = ['R1', "R6", "R7", "R13", "R35"]
-            [self.combo_fails.addItems(f for f in fail_list)]
+            [self.combo_amendments.addItems(f for f in fail_list)]
 
         elif self.plateblock == "Sample" and self.selection:
 
             # Clear amendments box
-            self.combo_fails.clear()
+            self.combo_amendments.clear()
 
             # Get samples associated with plate
             self.add_sample_list()
@@ -1477,14 +1547,17 @@ class AmendmentsWindow(QMainWindow):
         """ If user selects a samples from dropdown or list is updated """
 
         # Add list of possible amendments for sample
-        self.combo_fails.clear()
+        self.combo_amendments.clear()
 
         # If there is a sample ID update amendments box
         if self.combo_samples.currentText():
 
-            self.combo_fails.addItems(['Tested in error'])
+            self.combo_amendments.addItems(['Tested in error'])
 
+    def amendment_changed(self, amendment):
+        """ If amendment to be added has changed """
 
+        self.amendment = amendment
 
 def get_geometry():
     """ Get the screen resolution and return the optimal dimensions on startup """
@@ -1505,7 +1578,8 @@ def get_geometry():
 def get_plate_id(filename):
     """ Get technician, date and plate ID from barcode """
 
-    barcode = filename
+    barcode = os.path.split(filename)[-1]
+
     barcode = barcode.split("_")[1].split(".")[0]
     barcode = barcode + "NO"
 
