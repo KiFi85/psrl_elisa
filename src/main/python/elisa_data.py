@@ -34,6 +34,9 @@ class ELISAData:
         self.xl_id = xl_id  # ID of working Excel process
         self.printer = win32print.GetDefaultPrinter()  # Default printer
         self.ctx = ctx  # Application Context (for resources)
+        # A summary table of plate fails to check for R35s
+        self.df_plates = pd.DataFrame(
+            columns=['Plate', 'Sample1', 'Sample2', 'Sample3', 'Sample4', 'Fail'])
 
         # PDF configuration (wkhtmltopdf)
         self.pdf_config = pdfkit.configuration(wkhtmltopdf=ctx.pdf_exe)
@@ -98,6 +101,14 @@ class ELISAData:
             # Add plate details to plate list
             plate_details = get_plate_details(elisa)
             self.plate_list.append(plate_details)
+
+            # Input as summary to plate dataframe
+            row = len(self.df_plates.index)
+            df_plates = [plate_details[0]]
+            for r in range(2, 7):
+                df_plates.append(plate_details[r])
+
+            self.df_plates.loc[row] = df_plates
 
             # Add sample results to results list
             results = get_result_details(elisa)

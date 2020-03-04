@@ -174,6 +174,7 @@ class DataTab(QWidget):
         # Option check boxes
         self.cb_lloq = QCheckBox(objectName="cb_lloq", text="Apply LLOQ (<0.15)")
         self.cb_print = QCheckBox(objectName="cb_print", text="Print plate data")
+        self.cb_print.setEnabled(True)
         self.cb_print.toggled.connect(lambda: self.print_checkbox_changed(self.cb_print))
 
         # OD text boxes
@@ -787,6 +788,17 @@ class DataTab(QWidget):
         summary_name = os.path.join(os.path.abspath(self.savedir),
                                     'run_details ' + self.assay.f007_ref + '.csv')
 
+        # Check for suspected R35s
+        df_blocks, block_list = self.get_block_list()
+
+        # If list of blocks (may not be if repeats) - check for R35s
+        if block_list:
+            new_warnings = get_r35s(df_blocks, block_list)
+
+            # Add any R35 warnings that may have been returned
+            for w in new_warnings:
+                self.elisa_data.warnings.append(w)
+
         # If run_details doesn't exist - create. Else - update
         if not os.path.isfile(summary_name):
             self.elisa_data.create_summary()
@@ -802,6 +814,30 @@ class DataTab(QWidget):
             self.elisa_data.update_master()
 
         self.master_done = True
+
+    def get_block_list(self):
+        """ Get a list of blocks to check for R35s """
+
+        df = self.elisa_data.df_plates
+
+        block_list = []
+        # Just check sample duplicates (i.e. the same list of samples on different plates)
+        colnames = df.columns[1:-1].tolist()
+        # Get list of duplicates - keep all
+        dup_rows = df.duplicated(subset=colnames, keep=False)
+        # Subset df
+        df_dups = df[dup_rows]
+
+        # If duplicates
+        if not df_dups.empty:
+            # Group by duplicate and create comma separated list
+            grouped = df_dups.groupby(colnames)
+            r_blocks = grouped.agg(lambda x: ','.join(x))['Plate'].tolist()
+            [block_list.append(f.split(",")) for f in r_blocks]
+
+            return df_dups, block_list
+        else:
+            return None
 
     def check_ignore_file(self, file):
         """ Check that the file in the assay object is not a pdf, xlsm, json or run_details """
@@ -1601,3 +1637,34 @@ def get_plate_id(filename):
         plate_id = bstring[:-8]
 
     return plate_id
+
+
+def get_r35s(df, block_list):
+    """ Check for suspected R35s from list of blocks """
+
+    new_warnings = []
+    # Subset by block
+    for plates in block_list:
+
+        block_df = df[df['Plate'].isin(plates)]
+
+        # Calculate % fail
+        percent_fail = block_df['Fail'].notna().sum() / len(block_df.index) * 100
+
+        # If >70% R35
+        # Check if all plates have same block ID and return just that if so
+        is_r35 = True if percent_fail > 70 else False
+        if is_r35:
+
+            # Check if all plates are in block A for example
+            whole_block = all(plate[-1] == plates[0][-1] for plate in plates)
+
+            if whole_block:
+                block_str = plates[0][-1]
+            else:
+                block_str = '[' + ','.join(plates) + ']'
+
+            r35_string = 'Suspected R35 on block ' + block_str + ' Please check and amend if necessary'
+            new_warnings.append(r35_string)
+
+    return new_warnings
