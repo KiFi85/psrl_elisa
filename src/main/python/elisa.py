@@ -430,10 +430,22 @@ class Sample:
         
         # Get average concentration now ODs and replicates have been removed
         self.average_concs = np.mean(self.concs, axis=1)
+
+        # Calculate result for sample
         self.result = self.get_result()
 
         # Get CVs between dilutions
         self.cvs = self.get_cvs()
+
+        # Check if result_recalc is amendment
+        amendment = self.check_amendment()
+
+        # If there is an amended value (tested in error) return
+        if amendment:
+            # Format values
+            self.format_values()
+            self.result_recalc = amendment
+            return
 
         # Check if LLOQ - ignore if validation
         self.lloq = self.check_lloq() if self.apply_lloq else False
@@ -444,7 +456,7 @@ class Sample:
         else:
             self.result_recalc = "<0.15"
 
-        # Format values
+        # Format values (average concs, replicates and cvs)
         self.format_values()
 
     def apply_od_cutoff(self):
@@ -690,6 +702,25 @@ class Sample:
         else:
             return None
 
+    def check_amendment(self):
+        """ Check if sample has been tested in error """
+
+        amendment = ""
+
+        # If empty dataframe - return
+        if self.amendments is None or self.amendments.empty:
+            return amendment
+
+        # Check sample is in dataframe
+        if self.sample_id in self.amendments.Sample.tolist():
+
+            # Get row
+            row = self.amendments[self.amendments['Sample'] == self.sample_id]
+            # Get amendment
+            amendment = row['Amendment'].tolist()[0]
+
+        return amendment
+
     def get_recalc(self):
         """ Get a recalculated value for sample if necessary """
 
@@ -733,8 +764,7 @@ class QC(Sample):
 
     def __init__(self, data, sample_number, sample_id, curve_vals=None):
         super().__init__(data, sample_number, sample_id,
-                         curve_vals=None, cut_low_ods=0.1, cut_high_ods=2, apply_lloq=False, amendments = None)
-
+                         curve_vals=None, cut_low_ods=0.1, cut_high_ods=2, apply_lloq=False, amendments=None)
 
     def get_data(self):
         """ Get QC data - overridden function """
