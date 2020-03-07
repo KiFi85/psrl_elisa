@@ -680,7 +680,7 @@ class DataTab(QWidget):
             self.elisa_data = ELISAData(assay=self.assay, savedir=self.savedir,
                                         trend_file=self.TREND_FILE, f093_file=self.F093_FILE,
                                         master_file=master_file, xl_id=self.xl_id,
-                                        parms_dict=self.parms, amendments=self.amendments, ctx=self.ctx)
+                                        parms_dict=self.parms, ctx=self.ctx)
         except RangeNotFoundError:
             self.object_errors.append("Error creating elisa data object")
             return self.object_errors
@@ -708,7 +708,7 @@ class DataTab(QWidget):
             # Create ELISA Object
             self.elisa = ELISA(f, self.assay.first_list, self.assay.repeats_list,
                                    self.assay.qc_limits, self.assay.curve_vals, self.savedir,
-                                   self.cut_high_ods, self.cut_low_ods, self.apply_lloq)
+                                   self.cut_high_ods, self.cut_low_ods, self.apply_lloq, self.amendments)
 
             # Add file to list of names for printing
             try:
@@ -793,6 +793,14 @@ class DataTab(QWidget):
         self.elisa_data.update_trending()
         self.trending_done = True
 
+        # If master study file doesn't exist - create. Else - update
+        if not os.path.isfile(self.elisa_data.master_file):
+            self.elisa_data.create_master()
+        else:
+            self.elisa_data.update_master()
+
+        self.master_done = True
+
         # Summary table of testing details
         summary_name = os.path.join(os.path.abspath(self.savedir),
                                     'run_details ' + self.assay.f007_ref + '.csv')
@@ -816,17 +824,10 @@ class DataTab(QWidget):
             
         self.summary_done = True
 
-        # If master study file doesn't exist - create. Else - update
-        if not os.path.isfile(self.elisa_data.master_file):
-            self.elisa_data.create_master()
-        else:
-            self.elisa_data.update_master()
-
-        self.master_done = True
-
     def get_block_list(self):
         """ Get a list of blocks to check for R35s """
 
+        # List of all plates processed
         df = self.elisa_data.df_plates
 
         block_list = []
@@ -839,14 +840,12 @@ class DataTab(QWidget):
 
         # If duplicates
         if not df_dups.empty:
-            # Group by duplicate and create comma separated list
+            # Group by duplicate and create comma separated list of blocks
             grouped = df_dups.groupby(colnames)
             r_blocks = grouped.agg(lambda x: ','.join(x))['Plate'].tolist()
             [block_list.append(f.split(",")) for f in r_blocks]
 
-            return df_dups, block_list
-        else:
-            return None
+        return df_dups, block_list
 
     def check_ignore_file(self, file):
         """ Check that the file in the assay object is not a pdf, xlsm, json or run_details """

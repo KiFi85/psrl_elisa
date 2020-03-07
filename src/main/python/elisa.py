@@ -8,7 +8,7 @@ class ELISA:
     """ Class to contain all information about ELISA plate """
 
     def __init__(self, file, first_list, repeats_list, qc_limits, curve_vals, savedir,
-                 cut_high_ods, cut_low_ods, apply_lloq):
+                 cut_high_ods, cut_low_ods, apply_lloq, amendments):
 
         # Get elisa data
         self.file = file  # File path of plate csv
@@ -16,6 +16,7 @@ class ELISA:
         self.qc_limits = qc_limits
         self.curve_vals = curve_vals
         self.savedir = savedir  # Directory
+        self.amendments = amendments  # If any results are to be amended
 
         # Get curve/reader parameters and data
         self.parameters, self.data = self.get_data()
@@ -63,7 +64,7 @@ class ELISA:
         
         # Create Sample Object with data, column number and sample ID
         self.Samples = [Sample(self.data, c, smps[c-1], self.curve_vals,
-                               cut_high_ods, cut_low_ods, apply_lloq) for c in range(1, 5)]
+                               cut_high_ods, cut_low_ods, apply_lloq, amendments) for c in range(1, 5)]
 
         # Check for sample warnings
         self.get_sample_warnings()
@@ -76,8 +77,15 @@ class ELISA:
         self.High_QC = QC(self.data, sample_number=5, sample_id="HI")
         self.Low_QC = QC(self.data, sample_number=5, sample_id="LO")
 
-        # Check plate fail
-        self.plate_fail = self.get_plate_fail()
+        # Check for plate amendment
+        # If there is a plate amendment then return else check for plate fail
+        amendment = self.check_amendment()
+        if amendment:
+            self.plate_fail = amendment
+            return
+        else:
+            # Check plate fail
+            self.plate_fail = self.get_plate_fail()
 
         # If curve, blank or protocol fail - Don't trend QCs (and don't check for OOR)
         if self.plate_fail in ["R16", "R11"]:
@@ -301,6 +309,25 @@ class ELISA:
         else:
             return None
 
+    def check_amendment(self):
+        """ Check if plate fail amendment """
+
+        amendment = ""
+        plate_id = self.barc_id
+
+        # If empty dataframe - return
+        if self.amendments.empty:
+            return amendment
+
+        elif plate_id in self.amendments.Plate.tolist():
+
+            # Get row
+            row = self.amendments[self.amendments['Plate'] == plate_id]
+            # Get amendment
+            amendment = row['Amendment'].tolist()[0]
+
+        return amendment
+
     def check_qc_oor(self):
         """ Check to see whether QC is out of range """
 
@@ -367,7 +394,7 @@ class Sample:
     """ Class containing all sample details and checks """
 
     def __init__(self, data, sample_number, sample_id, curve_vals,
-                 cut_high_ods, cut_low_ods, apply_lloq):
+                 cut_high_ods, cut_low_ods, apply_lloq, amendments):
         
         self.data = data  # Sample data
         self.sample_number = sample_number  # Position on plate
@@ -378,6 +405,7 @@ class Sample:
         self.cut_high_ods = cut_high_ods  # Upper OD limit
         self.cut_low_ods = cut_low_ods  # Lower OD limit
         self.apply_lloq = apply_lloq  # Apply LLOQ yes/no
+        self.amendments = amendments  # If any results need to be amended
         idx_list = ['A','B','C','D','E','F','G','H']
 
         # If sample ID == Empty then return empty series and values
@@ -705,7 +733,7 @@ class QC(Sample):
 
     def __init__(self, data, sample_number, sample_id, curve_vals=None):
         super().__init__(data, sample_number, sample_id,
-                         curve_vals=None, cut_low_ods=0.1, cut_high_ods=2, apply_lloq=False)
+                         curve_vals=None, cut_low_ods=0.1, cut_high_ods=2, apply_lloq=False, amendments = None)
 
 
     def get_data(self):
@@ -781,7 +809,7 @@ class Curve(Sample):
         self.top_point = self.get_top_point()
 
         super().__init__(data, sample_number, sample_id, curve_vals,
-                         cut_low_ods=None, cut_high_ods=None, apply_lloq=False)
+                         cut_low_ods=None, cut_high_ods=None, apply_lloq=False, amendments=None)
 
         # Calculate curve replicates
         self.replicates, self.replabels = self.get_replicates()
