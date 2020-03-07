@@ -23,7 +23,8 @@ pdf_options = {
 class ELISAData:
     """ Class containing functions to process elisa data """
 
-    def __init__(self, assay, savedir, trend_file, f093_file, master_file, xl_id, ctx):
+    def __init__(self, assay, savedir, trend_file, f093_file, master_file,
+                 xl_id, parms_dict, amendments, ctx):
 
         self.assay = assay
         self.savedir = savedir  # Dir when ELISA data is stored
@@ -33,6 +34,8 @@ class ELISAData:
         self.master_file = os.path.abspath(master_file)  # Study master file
         self.xl_id = xl_id  # ID of working Excel process
         self.printer = win32print.GetDefaultPrinter()  # Default printer
+        self.parms_dict = parms_dict  # The parameters used for processing (OD/LLOQ)
+        self.amendments = amendments  # If any amended results to be input
         self.ctx = ctx  # Application Context (for resources)
         # A summary table of plate fails to check for R35s
         self.df_plates = pd.DataFrame(
@@ -111,7 +114,7 @@ class ELISAData:
             self.df_plates.loc[row] = df_plates
 
             # Add sample results to results list
-            results = get_result_details(elisa)
+            results = self.get_result_details(elisa)
             self.results_list.append(results)
 
             # Increase fail if plate fail
@@ -462,6 +465,9 @@ class ELISAData:
                      ["Technician:", assay.tech, "", "", "", "", ""],
                      ["Sponsor:", assay.sponsor, "", "", "", "", ""],
                      ["Study:", assay.study, "", "", "", "", ""],
+                     ["OD Upper Limit:", self.parms_dict['OD_Upper'], "", "", "", "", ""],
+                     ["OD Lower Limit:", self.parms_dict['OD_Lower'], "", "", "", "", ""],
+                     ["Apply LLOQ::", self.parms_dict['LLOQ'], "", "", "", "", ""],
                      ["", "", "", "", "", "", ""],
                      ["", "", "", "", "", "", ""],
                      ["Number of Plates:", n_plates, "", "", "", "", ""],
@@ -559,6 +565,71 @@ class ELISAData:
         for app in xw.apps:
             if app.pid == self.xl_id:
                 return app
+
+    def get_result_details(self, elisa):
+        """ Get sample ID, serotype, result, labdate and technician as list """
+
+        # Empty list to store results
+        result_list = []
+        # Empty amendment
+        amendment = ""
+
+        # Get plate and block ID
+        plate_id = elisa.barc_id
+        block_id = elisa.barc_id[-1]
+
+        # Loop through samples and get details
+        for s in elisa.Samples:
+
+            if s.sample_id.upper() != "EMPTY":
+
+                # If plate fail - just report fail, else get the sample result
+                if elisa.plate_fail:
+                    result = elisa.plate_fail
+                else:
+                    result = get_sample_result(s)
+
+                # Check sample amendment
+                if not self.amendments.empty:
+                    amendment = self.get_amendments(plate_id, s)
+
+                # Create a list of results to input to master
+                smp_list = [s.sample_id,
+                            elisa.serotype,
+                            block_id,
+                            result,
+                            amendment,
+                            elisa.barc_date,
+                            elisa.barc_tech]
+
+                # Append list to result_list
+                result_list.append(smp_list)
+
+        return result_list
+
+    def get_amendments(self, plate_id, sample_id):
+        """ Check for plate or sample amendments in amendments dataframe """
+
+        amendment = ""
+
+        # Check sample is in dataframe
+        if sample_id in self.amendments.Sample.tolist():
+
+            # Get row
+            row = self.amendments[self.amendments['Sample'] == sample_id]
+            # Get amendment
+            amendment = row['Amendment'].tolist()[0]
+
+        # Else check if plate is in dataframe
+        elif plate_id in self.amendments.Plate.tolist():
+
+            # Get row
+            row = self.amendments[self.amendments['Plate'] == plate_id]
+            # Get amendment
+            amendment = row['Amendment'].tolist()[0]
+
+        return amendment
+
 
 def get_file_from_path(path):
 
@@ -743,37 +814,6 @@ def get_plate_details(elisa):
     return plate_list
 
 
-def get_result_details(elisa):
-    """ Get sample ID, serotype, result, labdate and technician as list """
-
-    # Empty list to store results
-    result_list = []
-    
-    plate_id = elisa.barc_id[-1]
-
-    # Loop through samples and get details
-    for s in elisa.Samples:
-
-        if s.sample_id.upper() != "EMPTY":
-            
-            if elisa.plate_fail:
-                result = elisa.plate_fail
-            else:
-                result = get_sample_result(s)
-            smp_list = [s.sample_id,
-                        elisa.serotype,
-                        plate_id,
-                        result,
-                        '',
-                        elisa.barc_date,
-                        elisa.barc_tech]
-
-            # Append list to result_list
-            result_list.append(smp_list)
-
-    return result_list
-
-
 def get_sample_result(sample):
     """ Determine how to report a sample result based on it's recalculated
         result """
@@ -794,6 +834,7 @@ def get_sample_result(sample):
     result = str(round_to3(result))
     
     return result
+
 
 def update_plate_summary(df, new_plates):
     """ Input dataframe of existing run_details csv. Update the number of
@@ -938,11 +979,20 @@ def check_warnings(df):
     # Loop through existing warnings and remove if plate ID is found
     for w in ex_warnings:
 
+        # Ignore R35 warnings
+        if 'R35' in w:
+            continue
+
         # Get plate ID and see if it's in list
         # if plate ID from warning is not present in list - add to new list
-        plate_id = w.split(':')[0].replace("Plate ", "")
-        if plate_id not in p_ids:
-            warnings_to_add.append(w)
+        try:
+            plate_id = w.split(':')[0].replace("Plate ", "")
+            if plate_id not in p_ids:
+                warnings_to_add.append(w)
+        except AttributeError:
+            print(w)
+            print(p_ids)
+            continue
 
     # Remove all existing warnings
     df.loc[range(warn_start, warn_end), 'val'] = np.nan

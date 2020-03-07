@@ -22,6 +22,7 @@ import traceback
 import win32api
 import win32print
 import sys
+import re
 
 class WorkerSignals(QObject):
 
@@ -104,6 +105,9 @@ class DataTab(QWidget):
 
         # Make amendments boolean
         self.amendments = pd.DataFrame()
+
+        # Parameters used for printing
+        self.parms = {'OD_Upper': 2.0, 'OD_Lower': 0.1, 'LLOQ': True}
 
         # Layout spacing
         layout_main.setSpacing(20)
@@ -234,7 +238,8 @@ class DataTab(QWidget):
 
     def print_checkbox_changed(self, cb):
         pass
-        # print(self.amendments)
+        # path = r"C:\Users\kier_\Documents_Unsynced\Python\whopsrl\Data_Files\14Dec16K\Fake R35s\amend.csv"
+        # self.amendments.to_csv(path,index=False)
 
     def init_parms(self):
         """ Initialise all parameters - used at startup and when Run Button clicked again """
@@ -301,6 +306,9 @@ class DataTab(QWidget):
 
         # Get parameters
         self.cut_high_ods, self.cut_low_ods, self.apply_lloq = self.get_parms()
+        self.parms['OD_Upper'] = self.cut_high_ods
+        self.parms['OD_Lower'] = self.cut_low_ods
+        self.parms['LLOQ'] = self.apply_lloq
 
         app = xw.App(visible=False)
         app.screen_updating = False
@@ -671,7 +679,8 @@ class DataTab(QWidget):
         try:
             self.elisa_data = ELISAData(assay=self.assay, savedir=self.savedir,
                                         trend_file=self.TREND_FILE, f093_file=self.F093_FILE,
-                                        master_file=master_file, xl_id=self.xl_id, ctx=self.ctx)
+                                        master_file=master_file, xl_id=self.xl_id,
+                                        parms_dict=self.parms, amendments=self.amendments, ctx=self.ctx)
         except RangeNotFoundError:
             self.object_errors.append("Error creating elisa data object")
             return self.object_errors
@@ -850,7 +859,8 @@ class DataTab(QWidget):
         if Path(file).suffix.upper() == '.PDF' \
                 or Path(file).suffix.upper() == '.XLSM' \
                 or Path(file).suffix.upper() == '.JSON' \
-                or run_split == "run_details":
+                or run_split == "run_details" \
+                or not re.findall('\w{2}\d{6}', run_split):
             return True
         else:
             return False
@@ -1614,10 +1624,11 @@ def get_geometry():
 def get_plate_id(filename):
     """ Get technician, date and plate ID from barcode """
 
+    # Extract barcode from filename
     barcode = os.path.split(filename)[-1]
 
+    # Get rid of protocol name
     barcode = barcode.split("_")[1].split(".")[0]
-    barcode = barcode + "NO"
 
     # Check if last character is alpga
     if barcode[0].isalpha():
