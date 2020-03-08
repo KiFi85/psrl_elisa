@@ -389,6 +389,14 @@ class ELISAData:
         # Input NRs
         df = self.get_nrs(df)
 
+        # Add test run number
+        df = self.add_test_run(df)
+
+        # Format date column
+        df.sort_values(by=['LABDT', 'Sample ID', 'PnC Serotype', 'Technician'], inplace=True)
+        df['LABDT'] = pd.to_datetime(df['LABDT'])
+        df['LABDT'] = df['LABDT'].dt.strftime('%d-%b-%y')
+
         return df
 
     def get_master_df(self):
@@ -404,7 +412,7 @@ class ELISAData:
         except pd.errors.EmptyDataError:  # If no data found - create
 
             headers = ['Sample ID', 'PnC Serotype', 'Plate ID',
-                       'Result', 'Amended Result', 'LABDT', 'Technician']
+                       'Result', 'Amended Result', 'LABDT', 'Technician', 'Test Run']
 
             df = pd.DataFrame(columns=headers)
 
@@ -413,7 +421,7 @@ class ELISAData:
         df['LABDT'] = pd.to_datetime(df['LABDT'])
 
         # Format date column
-        df['LABDT'] = df['LABDT'].dt.strftime('%d-%b-%y')
+        # df['LABDT'] = df['LABDT'].dt.strftime('%d-%b-%y')
         df.fillna(value='', inplace=True)
 
         return df
@@ -425,10 +433,9 @@ class ELISAData:
         df.drop_duplicates(keep='first', inplace=True)
 
         # Sort by date if more than one date
-        df['LABDT'] = pd.to_datetime(df['LABDT'])
-        df.sort_values(by=['LABDT','PnC Serotype', 'Plate ID', 'Sample ID'], inplace=True)
-        df['LABDT'] = df['LABDT'].dt.strftime('%d-%b-%y')
-        print(df['LABDT'].unique())
+        # df['LABDT'] = pd.to_datetime(df['LABDT'])
+        # df['LABDT'] = df['LABDT'].dt.strftime('%Y-%m-%d')
+        df.sort_values(by=['LABDT', 'Sample ID', 'PnC Serotype'], inplace=True)
 
         # Get NP duplicates and assign second one to 'NR'
         dups = df[df['Result'].eq('NP')].duplicated(subset=[
@@ -439,6 +446,40 @@ class ELISAData:
 
         return df
 
+    def add_test_run(self, df):
+        """ Add test run number to master file """
+
+        # Sort by date, sample, serotype
+        # df.sort_values(by=['LABDT', 'Sample ID', 'PnC Serotype'], inplace=True)
+
+        # Columns to check test run (sample and seortype)
+        col_list = ['Sample ID', 'PnC Serotype']
+
+        # Get nth instance for each sample/sero combo
+        df['Test Run'] = df.groupby(col_list).cumcount() + 1
+
+        # Get maximum number for each combo
+        max_counts = df.groupby(col_list).size()
+        max_counts = max_counts.to_frame(name='Max')
+
+        # Set index to match that of max_counts
+        df.set_index(col_list, inplace=True)
+
+        # Merge
+        df = df.merge(max_counts, how='left', left_index=True, right_index=True)
+
+        # Format
+        df['Test Run'] = df['Test Run'].astype(str)
+        df.Max = df.Max.astype(str)
+
+        # Create test run column
+        df['Test Run'] = df['Test Run'] + " of " + df['Max']
+
+        # Reset index and drop max column
+        df.drop(columns='Max', inplace=True)
+        df.reset_index(inplace=True)
+
+        return df
 
     def update_summary(self):
         """ Update the run_details summary file when printing extra plates 
@@ -616,7 +657,8 @@ class ELISAData:
                             result,
                             "",
                             elisa.barc_date,
-                            elisa.barc_tech]
+                            elisa.barc_tech,
+                            ""]
 
                 # Append list to result_list
                 result_list.append(smp_list)
@@ -1038,7 +1080,7 @@ def check_edit_master(data_list, df):
     check_list = list(data_list[i] for i in [0, 1, 2, 5, 6])
 
     # Create a 'check' dataframe to see if everything but result has been input before
-    df_check = df.drop(columns=['Result', 'Amended Result'])
+    df_check = df.drop(columns=['Result', 'Amended Result', 'Test Run'])
 
     # See if found matched plate and get df index
     check_row = df_check[(df_check == check_list).all(axis=1)]
