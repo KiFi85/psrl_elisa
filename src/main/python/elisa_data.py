@@ -369,8 +369,22 @@ class ELISAData:
                 # If row already in master - continue
                 if not df[(df == row).all(axis=1)].empty:
                     continue
-                else:
-                    df.loc[len(df)] = row
+
+                # CHECK WHETHER SHOULD AMEND
+                amend_row, amend_result = check_edit_master(row, df)
+                # If an amendment returned, edit result
+                if amend_result:
+                    df.loc[df.index[amend_row], 'Result'] = amend_result
+                    continue
+
+                # CHECK WHETHER TESTED IN ERROR
+                tested_in_error = check_tested_inerror(row, df)
+                # If tested in error - append to warnings list
+                if tested_in_error:
+                    self.append_test_error_warning(row)
+
+                # If here then input entire row
+                df.loc[len(df.index)] = row
 
         # Drop Duplicates (sample plate will have been re-printed)
         df.drop_duplicates(keep='first', inplace=True)
@@ -571,11 +585,8 @@ class ELISAData:
 
         # Empty list to store results
         result_list = []
-        # Empty amendment
-        # amendment = ""
 
-        # Get plate and block ID
-        plate_id = elisa.barc_id
+        # Get block ID
         block_id = elisa.barc_id[-1]
 
         # Loop through samples and get details
@@ -588,13 +599,6 @@ class ELISAData:
                     result = elisa.plate_fail
                 else:
                     result = get_sample_result(s)
-
-                # Check sample amendment
-                # if not self.amendments.empty:
-                #     amendment = self.get_amendments(plate_id, s)
-
-                # Overwrite result with amendment if not empty
-                # result = amendment if amendment else result
 
                 # Create a list of results to input to master
                 smp_list = [s.sample_id,
@@ -610,29 +614,18 @@ class ELISAData:
 
         return result_list
 
-    # def get_amendments(self, plate_id, sample_id):
-    #     """ Check for plate or sample amendments in amendments dataframe """
-    #
-    #     amendment = ""
-    #
-    #     # Check sample is in dataframe
-    #     if sample_id in self.amendments.Sample.tolist():
-    #
-    #         # Get row
-    #         row = self.amendments[self.amendments['Sample'] == sample_id]
-    #         # Get amendment
-    #         amendment = row['Amendment'].tolist()[0]
-    #
-    #     # Else check if plate is in dataframe
-    #     elif plate_id in self.amendments.Plate.tolist():
-    #
-    #         # Get row
-    #         row = self.amendments[self.amendments['Plate'] == plate_id]
-    #         # Get amendment
-    #         amendment = row['Amendment'].tolist()[0]
-    #
-    #     return amendment
+    def append_test_error_warning(self, data_list):
+        """ Append a warning to warnings list that plate already been tested """
 
+        # Sample ID
+        sample_id = data_list[0]
+        # Plate ID
+        plate_id = data_list[1] + data_list[2]
+
+        warn_str = sample_id + " on plate " + plate_id + \
+                   ": Suspected tested in error. Please check and amend if necessary"
+
+        self.warnings.append(warn_str)
 
 def get_file_from_path(path):
 
@@ -987,7 +980,7 @@ def check_warnings(df):
             continue
 
         # Ignore R35 warnings
-        if 'R35' in w:
+        if 'R35' or 'Suspected' in w:
             continue
 
         # Get plate ID and see if it's in list
@@ -1022,3 +1015,52 @@ def import_f093_json(file_path):
     
     return df
 
+
+def check_edit_master(data_list, df):
+    """ IF NEED TO UPDATE DATAFRAME WITH NEW RESULT
+        This will only occur if everything is identical bar the result
+        i.e. same sample/serotype/plate/test date and technician.
+        Takes a list of plate data as input """
+
+    # Get the result from the list
+    new_result = data_list[3]
+    # Check list of everything bar result/amended result
+    check_list = list(data_list[i] for i in [0, 1, 2, 5, 6])
+
+    # Create a 'check' dataframe to see if everything but result has been input before
+    df_check = df.drop(columns=['Result', 'Amended Result'])
+
+    # See if found matched plate and get df index
+    check_row = df_check[(df_check == check_list).all(axis=1)]
+    if not check_row.empty:
+        # Get the index of the plate
+        row_idx = check_row.index.values[0]
+        return row_idx, new_result
+    else:
+        return None, None
+
+
+def check_tested_inerror(data_list, df):
+    """ Check whether a valid sample has been returned previously
+        If it has then this sample is possibly tested in error and
+        should be amended """
+
+    # Check list of Sample and Serotype
+    check_list = list(data_list[i] for i in [0, 1])
+
+    # Create a 'check' dataframe to see if sample has been tested on this serotype before
+    df_check = df[['Sample ID', 'PnC Serotype']]
+
+    # See if found matched plate and get df index
+    check_row = df_check[(df_check == check_list).all(axis=1)]
+    print(check_row)
+    if not check_row.empty:
+        # Get the index of the plate
+        row_idx = check_row.index.values[0]
+        # Get original result
+        orig_result = df.loc[df.index[row_idx], 'Result']
+        # Check if first character is letter
+        if not orig_result[0].isalpha():
+            return True
+        else:
+            return False
