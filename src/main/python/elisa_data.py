@@ -386,21 +386,8 @@ class ELISAData:
                 # If here then input entire row
                 df.loc[len(df.index)] = row
 
-        # Drop Duplicates (sample plate will have been re-printed)
-        df.drop_duplicates(keep='first', inplace=True)
-
-        # Sort by date if more than one date
-        df['LABDT'] = pd.to_datetime(df['LABDT'])
-
-        df.sort_values(by=['LABDT','PnC Serotype', 'Plate ID', 'Sample ID'], inplace=True)
-        df['LABDT'] = df['LABDT'].dt.strftime('%d-%b-%y')
-
-        # Get NP duplicates and assign second one to 'NR'
-        dups = df[df['Result'].eq('NP')].duplicated(subset=[
-            'Sample ID', 'PnC Serotype', 'Result'], keep='first')
-
-        nr_idx = dups[dups == True].index
-        df.loc[nr_idx, 'Amended Result'] = 'NR'
+        # Input NRs
+        df = self.get_nrs(df)
 
         return df
 
@@ -430,6 +417,28 @@ class ELISAData:
         df.fillna(value='', inplace=True)
 
         return df
+
+    def get_nrs(self, df):
+        """ Detect and input NR samples """
+
+        # Drop Duplicates (sample plate will have been re-printed)
+        df.drop_duplicates(keep='first', inplace=True)
+
+        # Sort by date if more than one date
+        df['LABDT'] = pd.to_datetime(df['LABDT'])
+        df.sort_values(by=['LABDT','PnC Serotype', 'Plate ID', 'Sample ID'], inplace=True)
+        df['LABDT'] = df['LABDT'].dt.strftime('%d-%b-%y')
+        print(df['LABDT'].unique())
+
+        # Get NP duplicates and assign second one to 'NR'
+        dups = df[df['Result'].eq('NP')].duplicated(subset=[
+            'Sample ID', 'PnC Serotype', 'Result'], keep='first')
+
+        nr_idx = dups[dups == True].index
+        df.loc[nr_idx, 'Amended Result'] = 'NR'
+
+        return df
+
 
     def update_summary(self):
         """ Update the run_details summary file when printing extra plates 
