@@ -981,6 +981,7 @@ def check_warnings(df):
 
         # Ignore R35 warnings
         if 'R35' or 'Suspected' in w:
+            warnings_to_add.append(w)
             continue
 
         # Get plate ID and see if it's in list
@@ -1053,14 +1054,16 @@ def check_tested_inerror(data_list, df):
 
     # See if found matched plate and get df index
     check_row = df_check[(df_check == check_list).all(axis=1)]
-    print(check_row)
+
     if not check_row.empty:
         # Get the index of the plate
-        row_idx = check_row.index.values[0]
-        # Get original result
-        orig_result = df.loc[df.index[row_idx], 'Result']
-        # Check if first character is letter
-        if not orig_result[0].isalpha():
+        row_idx = check_row.index.values
+        # Get original result(s)
+        orig_results = df.loc[df.index[row_idx], 'Result'].tolist()
+
+        # If the first letter of every result is not a letter
+        # At least one valid result previously
+        if not all(result[0].isalpha() for result in orig_results):
             return True
         else:
             return False

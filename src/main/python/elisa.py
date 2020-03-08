@@ -334,7 +334,6 @@ class ELISA:
         # Reset index
         df.reset_index(inplace=True)
 
-        print(plate_id + ", " + amendment)
         return amendment
 
     def check_qc_oor(self):
