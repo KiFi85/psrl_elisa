@@ -63,8 +63,8 @@ class ELISA:
         smps = self.sample_ids
         
         # Create Sample Object with data, column number and sample ID
-        self.Samples = [Sample(self.data, c, smps[c-1], self.curve_vals,
-                               cut_high_ods, cut_low_ods, apply_lloq, amendments) for c in range(1, 5)]
+        self.Samples = [Sample(self.data, c, smps[c-1], self.curve_vals, cut_high_ods,
+                               cut_low_ods, apply_lloq, amendments, self.barc_id) for c in range(1, 5)]
 
         # Check for sample warnings
         self.get_sample_warnings()
@@ -313,19 +313,28 @@ class ELISA:
         """ Check if plate fail amendment """
 
         amendment = ""
-        plate_id = self.barc_id
+        df = self.amendments
 
         # If empty dataframe - return
-        if self.amendments.empty:
+        if df is None or df.empty:
             return amendment
 
-        elif plate_id in self.amendments.Plate.tolist():
+        # Check sample is in dataframe
+        sample_id = ""
+        plate_id = self.barc_id
 
-            # Get row
-            row = self.amendments[self.amendments['Plate'] == plate_id]
-            # Get amendment
-            amendment = row['Amendment'].tolist()[0]
+        # Create multi index for lookup
+        df.set_index(['Plate', 'Sample'], inplace=True)
 
+        try:
+            amendment = df.loc[(plate_id, sample_id), 'Amendment']
+        except KeyError:
+            amendment = ""
+
+        # Reset index
+        df.reset_index(inplace=True)
+
+        print(plate_id + ", " + amendment)
         return amendment
 
     def check_qc_oor(self):
@@ -394,7 +403,7 @@ class Sample:
     """ Class containing all sample details and checks """
 
     def __init__(self, data, sample_number, sample_id, curve_vals,
-                 cut_high_ods, cut_low_ods, apply_lloq, amendments):
+                 cut_high_ods, cut_low_ods, apply_lloq, amendments, plate_id):
         
         self.data = data  # Sample data
         self.sample_number = sample_number  # Position on plate
@@ -406,6 +415,7 @@ class Sample:
         self.cut_low_ods = cut_low_ods  # Lower OD limit
         self.apply_lloq = apply_lloq  # Apply LLOQ yes/no
         self.amendments = amendments  # If any results need to be amended
+        self.plate_id = plate_id  # Plate ID
         idx_list = ['A','B','C','D','E','F','G','H']
 
         # If sample ID == Empty then return empty series and values
@@ -706,18 +716,26 @@ class Sample:
         """ Check if sample has been tested in error """
 
         amendment = ""
+        df = self.amendments
 
         # If empty dataframe - return
-        if self.amendments is None or self.amendments.empty:
+        if df is None or df.empty:
             return amendment
 
         # Check sample is in dataframe
-        if self.sample_id in self.amendments.Sample.tolist():
+        sample_id = self.sample_id
+        plate_id = self.plate_id
 
-            # Get row
-            row = self.amendments[self.amendments['Sample'] == self.sample_id]
-            # Get amendment
-            amendment = row['Amendment'].tolist()[0]
+        # Create multi index for lookup
+        df.set_index(['Plate', 'Sample'], inplace=True)
+
+        try:
+            amendment = df.loc[(plate_id, sample_id), 'Amendment']
+        except KeyError:
+            amendment = ""
+
+        # Reset index
+        df.reset_index(inplace=True)
 
         return amendment
 
@@ -764,7 +782,8 @@ class QC(Sample):
 
     def __init__(self, data, sample_number, sample_id, curve_vals=None):
         super().__init__(data, sample_number, sample_id,
-                         curve_vals=None, cut_low_ods=0.1, cut_high_ods=2, apply_lloq=False, amendments=None)
+                         curve_vals=None, cut_low_ods=0.1, cut_high_ods=2, apply_lloq=False,
+                         amendments=None, plate_id=None)
 
     def get_data(self):
         """ Get QC data - overridden function """
@@ -839,7 +858,8 @@ class Curve(Sample):
         self.top_point = self.get_top_point()
 
         super().__init__(data, sample_number, sample_id, curve_vals,
-                         cut_low_ods=None, cut_high_ods=None, apply_lloq=False, amendments=None)
+                         cut_low_ods=None, cut_high_ods=None, apply_lloq=False,
+                         amendments=None, plate_id=None)
 
         # Calculate curve replicates
         self.replicates, self.replabels = self.get_replicates()
