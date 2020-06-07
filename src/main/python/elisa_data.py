@@ -317,7 +317,7 @@ class ELISAData:
                     writer = csv.writer(csvFile)
                     # headers
                     headers = ['Sample ID',	'PnC Serotype', 'Plate ID',
-                               'Result', 'Amended Result', 'LABDT', 'Technician']
+                               'Result', 'Amended Result', 'LABDT', 'Technician', 'Test Run']
                     writer.writerow(headers)
 
                     # Write results

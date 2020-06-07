@@ -236,6 +236,8 @@ class DataTab(QWidget):
         self.xl_id = None
         self.init_parms()
 
+        self.cb_print.setEnabled(True)
+
     def print_checkbox_changed(self, cb):
         pass
         # path = r"C:\Users\kier_\Documents_Unsynced\Python\whopsrl\Data_Files\14Dec16K\Fake R35s\amend.csv"
@@ -798,7 +800,7 @@ class DataTab(QWidget):
             self.elisa_data.create_master()
         else:
             self.elisa_data.update_master()
-
+            print("here")
         self.master_done = True
 
         # Summary table of testing details
